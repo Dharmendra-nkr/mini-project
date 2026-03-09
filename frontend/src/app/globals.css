@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --gold: #c9a84c;
+  --gold-light: #e8d48b;
+  --navy: #0c1b2a;
+  --navy-light: #1a2d42;
+  --ocean: #0ea5e9;
+  --ocean-deep: #0369a1;
+  --sand: #f5f0e8;
+  --sand-dark: #e8dcc8;
+  --coral: #f97316;
+  --foreground: #1e293b;
+  --muted: #64748b;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--gold) transparent;
+}
+
+body {
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* Luxury gradient backgrounds */
+.bg-resort-hero {
+  background: linear-gradient(135deg, #0c1b2a 0%, #1a3a5c 40%, #0ea5e9 100%);
+}
+
+.bg-resort-dark {
+  background: linear-gradient(180deg, #0c1b2a 0%, #1a2d42 100%);
+}
+
+.bg-sand {
+  background: linear-gradient(180deg, #f5f0e8 0%, #ffffff 100%);
+}
+
+.text-gold {
+  color: var(--gold);
+}
+
+.border-gold {
+  border-color: var(--gold);
+}
+
+/* Glass morphism */
+.glass {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.glass-light {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* Chat animations */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes pulse-gold {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(201, 168, 76, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(201, 168, 76, 0); }
+}
+
+.pulse-gold {
+  animation: pulse-gold 2s infinite;
+}
+
+/* Markdown in chat */
+.chat-markdown p { margin-bottom: 0.5rem; }
+.chat-markdown strong { font-weight: 600; color: var(--navy); }
+.chat-markdown ol, .chat-markdown ul { padding-left: 1.25rem; margin-bottom: 0.5rem; }
+.chat-markdown li { margin-bottom: 0.25rem; }
