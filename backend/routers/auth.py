@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,7 +14,6 @@ from db.models import Manager
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
@@ -26,7 +25,7 @@ class TokenResponse(BaseModel):
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
 
 def create_access_token(data: dict) -> str:
@@ -46,9 +45,10 @@ async def get_current_manager(
     )
     try:
         payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
-        manager_id: int = payload.get("sub")
-        if manager_id is None:
+        sub = payload.get("sub")
+        if sub is None:
             raise credentials_exception
+        manager_id = int(sub)
     except JWTError:
         raise credentials_exception
 
@@ -73,7 +73,7 @@ async def login(
             detail="Incorrect email or password",
         )
 
-    token = create_access_token({"sub": manager.id, "role": manager.role})
+    token = create_access_token({"sub": str(manager.id), "role": manager.role})
     return TokenResponse(
         access_token=token,
         manager_name=manager.name,

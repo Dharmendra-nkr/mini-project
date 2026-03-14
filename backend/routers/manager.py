@@ -23,11 +23,77 @@ async def dashboard(
     """Main dashboard data — key metrics for today."""
     today = date.today()
     summary = await queries.get_analytics_summary(db)
+
+    # Total guests
+    total_guests_r = await db.execute(select(func.count(Guest.id)))
+    total_guests = total_guests_r.scalar() or 0
+
+    # Total bookings
+    total_bookings_r = await db.execute(select(func.count(Booking.id)))
+    total_bookings = total_bookings_r.scalar() or 0
+
+    # Bookings by status
+    status_q = await db.execute(
+        select(Booking.status, func.count(Booking.id)).group_by(Booking.status)
+    )
+    bookings_by_status = {r[0]: r[1] for r in status_q.all()}
+
+    # Recent bookings (last 20)
+    recent_q = await db.execute(
+        select(
+            Booking.booking_ref,
+            Booking.check_in,
+            Booking.check_out,
+            Booking.total_price,
+            Booking.status,
+            Booking.num_guests,
+            Booking.booked_at,
+            (Guest.first_name + " " + Guest.last_name).label("guest_name"),
+            Guest.email.label("guest_email"),
+            Room.room_number,
+            Room.room_name,
+            RoomType.name.label("room_type"),
+        )
+        .join(Guest, Booking.guest_id == Guest.id)
+        .join(Room, Booking.room_id == Room.id)
+        .join(RoomType, Room.room_type_id == RoomType.id)
+        .order_by(Booking.booked_at.desc())
+        .limit(20)
+    )
+    recent_bookings = [dict(r._mapping) for r in recent_q.all()]
+
+    # Top wings by bookings
+    from db.models import Wing
+    wing_q = await db.execute(
+        select(Wing.name, func.count(Booking.id).label("bookings"))
+        .join(Room, Room.wing_id == Wing.id)
+        .join(Booking, Booking.room_id == Room.id)
+        .where(Booking.status != "cancelled")
+        .group_by(Wing.name)
+        .order_by(func.count(Booking.id).desc())
+    )
+    top_wings = [{"wing": r[0], "bookings": r[1]} for r in wing_q.all()]
+
+    # Revenue by month (last 6 months)
+    revenue_monthly = summary.get("monthly", [])
+
     return {
         "manager": manager.name,
         "role": manager.role,
         "date": str(today),
-        **summary,
+        "total_rooms": summary.get("total_rooms", 0),
+        "occupied_rooms": summary.get("occupied_today", 0),
+        "occupancy_rate": summary.get("occupancy_rate", 0),
+        "avg_rating": summary.get("avg_rating", 0),
+        "total_revenue": summary.get("total_revenue", 0),
+        "total_guests": total_guests,
+        "total_bookings": total_bookings,
+        "bookings_by_status": bookings_by_status,
+        "top_wings": top_wings,
+        "top_rooms": summary.get("top_rooms", []),
+        "recent_bookings": recent_bookings,
+        "revenue_monthly": revenue_monthly,
+        "by_wing": summary.get("by_wing", []),
     }
 
 
