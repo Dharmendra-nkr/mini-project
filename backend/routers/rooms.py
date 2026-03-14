@@ -21,11 +21,35 @@ async def list_rooms(
     rooms = await queries.get_rooms(
         db, wing=wing, room_type=room_type, min_price=min_price, max_price=max_price
     )
-    return {"rooms": [{"id": r.id, "room_number": r.room_number, "room_name": r.room_name,
-             "floor": r.floor, "view_type": r.view_type, "capacity": r.capacity,
-             "base_price": float(r.base_price), "amenities": r.amenities,
-             "description": r.description, "mesh_id": r.mesh_id} for r in rooms],
-            "count": len(rooms)}
+
+    def _avg(reviews):
+        if not reviews:
+            return None
+        return round(sum(r.overall_rating for r in reviews) / len(reviews), 1)
+
+    return {
+        "rooms": [
+            {
+                "id": r.id,
+                "room_number": r.room_number,
+                "room_name": r.room_name,
+                "floor": r.floor,
+                "view_type": r.view_type,
+                "capacity": r.capacity,
+                "base_price": float(r.base_price),
+                "amenities": r.amenities,
+                "description": r.description,
+                "mesh_id": r.mesh_id,
+                "wing": r.wing.name if r.wing else None,
+                "room_type": r.room_type.name if r.room_type else None,
+                "tier": r.room_type.tier if r.room_type else None,
+                "avg_rating": _avg(r.reviews),
+                "review_count": len(r.reviews) if r.reviews else 0,
+            }
+            for r in rooms
+        ],
+        "count": len(rooms),
+    }
 
 
 @router.get("/availability-map")

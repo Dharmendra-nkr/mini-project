@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
 import { Menu, X, Waves } from "lucide-react";
 
 const links = [
@@ -14,6 +15,12 @@ const links = [
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
 
   return (
     <nav className="fixed top-0 z-50 w-full glass-light shadow-sm">
@@ -32,7 +39,11 @@ export default function Navbar() {
             <Link
               key={l.href}
               href={l.href}
-              className="text-sm font-medium text-[var(--foreground)] hover:text-[var(--gold)] transition-colors"
+              className={`text-sm font-medium transition-colors ${
+                pathname === l.href
+                  ? "text-[var(--gold)]"
+                  : "text-[var(--foreground)] hover:text-[var(--gold)]"
+              }`}
             >
               {l.label}
             </Link>
@@ -62,15 +73,17 @@ export default function Navbar() {
             <Link
               key={l.href}
               href={l.href}
-              onClick={() => setOpen(false)}
-              className="block text-sm font-medium text-[var(--foreground)] hover:text-[var(--gold)]"
+              className={`block text-sm font-medium transition-colors ${
+                pathname === l.href
+                  ? "text-[var(--gold)]"
+                  : "text-[var(--foreground)] hover:text-[var(--gold)]"
+              }`}
             >
               {l.label}
             </Link>
           ))}
           <Link
             href="/rooms"
-            onClick={() => setOpen(false)}
             className="block w-full text-center rounded-full bg-[var(--gold)] px-5 py-2 text-sm font-semibold text-white"
           >
             Book Now
