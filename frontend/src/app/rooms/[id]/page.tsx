@@ -29,6 +29,19 @@ export default function RoomDetailPage() {
   const [bookingResult, setBookingResult] = useState<BookingResult | null>(null);
   const [bookingError, setBookingError] = useState("");
 
+  // Calculate nights and total price
+  const nights =
+    checkIn && checkOut
+      ? Math.max(
+          0,
+          Math.round(
+            (new Date(checkOut).getTime() - new Date(checkIn).getTime()) /
+              86400000
+          )
+        )
+      : 0;
+  const totalEstimate = room ? nights * room.base_price : 0;
+
   useEffect(() => {
     if (!id) return;
     roomsApi
@@ -341,7 +354,7 @@ export default function RoomDetailPage() {
                 <div className="flex gap-3">
                   <button
                     type="submit"
-                    disabled={submitting}
+                    disabled={submitting || nights === 0}
                     className="flex-1 rounded-full bg-[var(--gold)] px-6 py-3 text-sm font-semibold text-white hover:bg-[var(--gold-light)] hover:text-[var(--navy)] disabled:opacity-50 transition-all"
                   >
                     {submitting ? "Processing..." : "Confirm Booking"}
@@ -354,6 +367,18 @@ export default function RoomDetailPage() {
                     Cancel
                   </button>
                 </div>
+
+                {/* Price summary */}
+                {nights > 0 && (
+                  <div className="mt-2 p-3 rounded-xl bg-white border border-[var(--gold)]/20 text-sm flex items-center justify-between">
+                    <span className="text-[var(--muted)]">
+                      ${room.base_price} &times; {nights} night{nights !== 1 ? "s" : ""}
+                    </span>
+                    <span className="font-bold text-[var(--gold)] text-base">
+                      ${totalEstimate.toFixed(0)}
+                    </span>
+                  </div>
+                )}
               </form>
             </motion.div>
           )}

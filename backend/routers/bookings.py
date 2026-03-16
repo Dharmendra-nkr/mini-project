@@ -65,7 +65,24 @@ async def lookup_booking(booking_ref: str, db: AsyncSession = Depends(get_db)):
     booking = await queries.get_booking_by_ref(db, booking_ref)
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
-    return booking
+    guest_name = f"{booking.guest.first_name} {booking.guest.last_name}".strip() if booking.guest else ""
+    room_name = booking.room.room_name if booking.room else ""
+    room_number = booking.room.room_number if booking.room else ""
+    return {
+        "booking_ref": booking.booking_ref,
+        "status": booking.status,
+        "payment_status": booking.payment_status,
+        "guest_name": guest_name,
+        "guest_email": booking.guest.email if booking.guest else "",
+        "room_name": room_name,
+        "room_number": room_number,
+        "check_in": str(booking.check_in),
+        "check_out": str(booking.check_out),
+        "num_guests": booking.num_guests,
+        "total_price": float(booking.total_price),
+        "special_requests": booking.special_requests,
+        "booked_at": str(booking.booked_at) if booking.booked_at else None,
+    }
 
 
 @router.delete("/{booking_ref}")

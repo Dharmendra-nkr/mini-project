@@ -19,7 +19,13 @@ async def get_rooms(
     max_price: Optional[float] = None,
     capacity: Optional[int] = None,
 ) -> list[Room]:
-    query = select(Room).join(Wing).join(RoomType).where(Room.is_active == True)
+    query = (
+        select(Room)
+        .join(Wing)
+        .join(RoomType)
+        .options(selectinload(Room.wing), selectinload(Room.room_type), selectinload(Room.reviews))
+        .where(Room.is_active == True)
+    )
     if wing:
         query = query.where(Wing.name.ilike(f"%{wing}%"))
     if floor:
