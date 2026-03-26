@@ -4,18 +4,30 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
-  ArrowLeft, Star, Users, Eye, MapPin, Waves,
-  Calendar, CheckCircle, AlertCircle,
+  ArrowLeft,
+  Star,
+  Users,
+  Eye,
+  MapPin,
+  Calendar,
+  CheckCircle,
+  AlertCircle,
+  Waves,
 } from "lucide-react";
-import { rooms as roomsApi, bookings as bookingsApi, Room, BookingResult } from "../../../lib/api";
+import {
+  rooms as roomsApi,
+  bookings as bookingsApi,
+  Room,
+  BookingResult,
+} from "../../../lib/api";
 
 export default function RoomDetailPage() {
   const { id } = useParams();
   const router = useRouter();
+
   const [room, setRoom] = useState<Room | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Booking form
   const [showBooking, setShowBooking] = useState(false);
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
@@ -73,14 +85,24 @@ export default function RoomDetailPage() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--sand)] pt-20 gap-4">
         <p className="text-[var(--muted)]">Room not found.</p>
-        <button onClick={() => router.push("/rooms")} className="text-[var(--gold)] underline text-sm">
+        <button
+          onClick={() => router.push("/rooms")}
+          className="text-[var(--gold)] underline text-sm"
+        >
           Back to Rooms
         </button>
       </div>
     );
   }
 
-  // Booking success view
+  const themeGradients = [
+    "from-[#0ea5e9] to-[#0369a1]",
+    "from-[#f97316] to-[#c9a84c]",
+    "from-[#0c1b2a] to-[#0ea5e9]",
+    "from-[#c9a84c] to-[#e8d48b]",
+  ];
+  const getGradient = (id: number) => themeGradients[id % themeGradients.length];
+
   if (bookingResult) {
     return (
       <div className="min-h-screen bg-[var(--sand)] pt-24 px-6">
@@ -91,7 +113,9 @@ export default function RoomDetailPage() {
         >
           <CheckCircle size={48} className="text-green-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-[var(--navy)] mb-2">Booking Confirmed!</h2>
-          <p className="text-[var(--muted)] mb-6">Your reservation at Grand Meridian Resort is confirmed.</p>
+          <p className="text-[var(--muted)] mb-6">
+            Your reservation at Grand Meridian Resort is confirmed.
+          </p>
 
           <div className="bg-[var(--sand)] rounded-xl p-4 text-left space-y-2 text-sm">
             <div className="flex justify-between">
@@ -133,31 +157,36 @@ export default function RoomDetailPage() {
 
   return (
     <div className="min-h-screen bg-[var(--sand)] pt-20">
-      {/* Header image */}
-      <div className="h-64 md:h-80 bg-gradient-to-br from-[var(--navy)] to-[var(--ocean)] relative flex items-center justify-center">
-        <Waves size={80} className="text-white/10" />
+      {/* Themed Hero Section */}
+      <div className={`relative w-full h-80 md:h-96 bg-gradient-to-br ${getGradient(room.id)} overflow-hidden flex items-center justify-center`}>
+        <div className="text-center text-white/70">
+          <Waves size={48} className="mx-auto mb-4" />
+          <p className="text-lg font-medium">{room.room_type}</p>
+          <p className="text-sm opacity-80 mt-2">{room.view_type} View</p>
+        </div>
+        
+        {/* Decorative overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+        
+        {/* Back button */}
         <button
           onClick={() => router.back()}
-          className="absolute top-4 left-4 glass rounded-full px-4 py-2 text-white text-sm flex items-center gap-2 hover:bg-white/20 transition"
+          className="absolute top-4 left-4 glass rounded-full px-4 py-2 text-white text-sm flex items-center gap-2 hover:bg-white/20 transition z-10"
         >
           <ArrowLeft size={16} /> Back
         </button>
       </div>
 
-      {/* Content */}
-      <div className="max-w-4xl mx-auto px-6 -mt-12">
+      <div className="max-w-4xl mx-auto px-6 py-12">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="bg-white rounded-2xl shadow-xl overflow-hidden"
         >
           <div className="p-6 md:p-8">
-            {/* Title row */}
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-[var(--navy)]">
-                  {room.room_name}
-                </h1>
+                <h1 className="text-2xl md:text-3xl font-bold text-[var(--navy)]">{room.room_name}</h1>
                 <p className="text-[var(--muted)] mt-1 flex items-center gap-2">
                   <MapPin size={14} /> {room.wing} · {room.room_number} · Floor {room.floor}
                 </p>
@@ -179,7 +208,6 @@ export default function RoomDetailPage() {
               </div>
             </div>
 
-            {/* Tags */}
             <div className="flex flex-wrap gap-2 mt-4">
               {room.tier && (
                 <span className="text-xs font-bold px-3 py-1 rounded-full bg-[var(--gold)] text-white uppercase">
@@ -199,18 +227,21 @@ export default function RoomDetailPage() {
               )}
             </div>
 
-            {/* Description */}
+
+
             {room.description && (
               <p className="mt-6 text-[var(--foreground)] leading-relaxed">{room.description}</p>
             )}
 
-            {/* Amenities */}
             {room.amenities && room.amenities.length > 0 && (
               <div className="mt-6">
                 <h3 className="font-semibold text-[var(--navy)] mb-3">Amenities</h3>
                 <div className="flex flex-wrap gap-2">
                   {room.amenities.map((a) => (
-                    <span key={a} className="text-xs px-3 py-1.5 rounded-full border border-[var(--gold)]/30 text-[var(--foreground)]">
+                    <span
+                      key={a}
+                      className="text-xs px-3 py-1.5 rounded-full border border-[var(--gold)]/30 text-[var(--foreground)]"
+                    >
                       {a}
                     </span>
                   ))}
@@ -218,7 +249,6 @@ export default function RoomDetailPage() {
               </div>
             )}
 
-            {/* Book Now button */}
             {!showBooking && (
               <button
                 onClick={() => setShowBooking(true)}
@@ -230,7 +260,6 @@ export default function RoomDetailPage() {
             )}
           </div>
 
-          {/* Booking Form */}
           {showBooking && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
@@ -246,7 +275,6 @@ export default function RoomDetailPage() {
               )}
 
               <form onSubmit={handleBooking} className="space-y-4">
-                {/* Dates */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-medium text-[var(--muted)] mb-1">Check-in</label>
@@ -272,7 +300,6 @@ export default function RoomDetailPage() {
                   </div>
                 </div>
 
-                {/* Guest info */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-medium text-[var(--muted)] mb-1">First Name</label>

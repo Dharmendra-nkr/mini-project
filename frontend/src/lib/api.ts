@@ -171,4 +171,43 @@ export const manager = {
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify({ question }),
     }),
+  analytics: {
+    chat: (token: string, message: string, sessionId?: string) => {
+      const qs = new URLSearchParams({ message });
+      if (sessionId) qs.append("session_id", sessionId);
+      return request<AnalyticsResponse>(`/api/manager/analytics/chat?${qs.toString()}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    },
+    history: (token: string) =>
+      request<{ queries: AnalyticsQueryHistory[]; count: number }>(
+        `/api/manager/analytics/history`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      ),
+  },
 };
+
+// ---------- Manager Analytics ----------
+export interface AnalyticsChartData {
+  [key: string]: unknown;
+}
+
+export interface AnalyticsResponse {
+  chart_type: string;
+  title: string;
+  data: AnalyticsChartData[];
+  insights: string;
+  session_id: string;
+  execution_ms: number;
+  status: string;
+  error?: string;
+}
+
+export interface AnalyticsQueryHistory {
+  id: number;
+  natural_language_query: string;
+  chart_type: string;
+  insights: string;
+  created_at: string;
+}

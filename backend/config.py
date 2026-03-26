@@ -10,7 +10,10 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://postgres:12345@localhost:5432/mini"
     database_url_sync: str = "postgresql://postgres:12345@localhost:5432/mini"
 
-    # Groq
+    # OpenRouter API (compatible with OpenAI SDK)
+    openrouter_api_key: str = ""
+    
+    # Legacy Groq (kept for backward compatibility)
     groq_api_key: str = ""
 
     # ElevenLabs

@@ -99,6 +99,27 @@ CREATE TABLE booking_addons (
     status VARCHAR(20) DEFAULT 'confirmed'
 );
 
+-- Payment History (multiple transactions per booking)
+CREATE TABLE payment_history (
+    id SERIAL PRIMARY KEY,
+    booking_id INT NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+    guest_id INT NOT NULL REFERENCES guests(id),
+    amount DECIMAL(10,2) NOT NULL,
+    currency VARCHAR(10) DEFAULT 'USD',
+    transaction_type VARCHAR(30) NOT NULL DEFAULT 'charge'
+        CHECK (transaction_type IN ('charge','refund','partial_refund','authorization','capture')),
+    payment_method VARCHAR(30) NOT NULL DEFAULT 'card'
+        CHECK (payment_method IN ('card','upi','bank_transfer','wallet','cash')),
+    gateway VARCHAR(30) DEFAULT 'stripe',
+    gateway_txn_id VARCHAR(100) UNIQUE,
+    status VARCHAR(20) NOT NULL DEFAULT 'succeeded'
+        CHECK (status IN ('pending','succeeded','failed','refunded','partially_refunded')),
+    attempt_no INT DEFAULT 1,
+    notes TEXT,
+    metadata JSONB DEFAULT '{}',
+    processed_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Reviews
 CREATE TABLE reviews (
     id SERIAL PRIMARY KEY,
@@ -148,6 +169,36 @@ CREATE TABLE analytics_events (
     event_type VARCHAR(50) NOT NULL,
     source VARCHAR(30),
     metadata JSONB DEFAULT '{}',
+    reference_type VARCHAR(30),  -- e.g., 'booking', 'payment', 'room'
+    reference_id INT,  -- FK to referenced entity
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Manager Chat Sessions
+CREATE TABLE manager_chat_sessions (
+    id SERIAL PRIMARY KEY,
+    session_id UUID DEFAULT uuid_generate_v4() UNIQUE,
+    manager_id INT NOT NULL REFERENCES managers(id),
+    started_at TIMESTAMP DEFAULT NOW(),
+    ended_at TIMESTAMP,
+    messages JSONB DEFAULT '[]',
+    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active','completed','abandoned'))
+);
+
+-- Manager Analytics Queries
+CREATE TABLE manager_analytics_queries (
+    id SERIAL PRIMARY KEY,
+    chat_session_id INT NOT NULL REFERENCES manager_chat_sessions(id) ON DELETE CASCADE,
+    manager_id INT NOT NULL REFERENCES managers(id),
+    natural_language_query TEXT NOT NULL,
+    generated_sql TEXT NOT NULL,
+    chart_type VARCHAR(20),
+    chart_config JSONB DEFAULT '{}',  -- {x_axis, y_axis, title, x_label, y_label}
+    result_data JSONB DEFAULT '[]',  -- query result rows as list of dicts
+    insights TEXT,
+    execution_ms INT,
+    status VARCHAR(20) DEFAULT 'success' CHECK (status IN ('success','error','timeout')),
+    error_message TEXT,
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -162,8 +213,19 @@ CREATE INDEX idx_bookings_room ON bookings(room_id);
 CREATE INDEX idx_bookings_dates ON bookings(check_in, check_out);
 CREATE INDEX idx_bookings_status ON bookings(status);
 CREATE INDEX idx_bookings_ref ON bookings(booking_ref);
+CREATE INDEX idx_payments_booking ON payment_history(booking_id);
+CREATE INDEX idx_payments_guest ON payment_history(guest_id);
+CREATE INDEX idx_payments_status ON payment_history(status);
+CREATE INDEX idx_payments_processed_at ON payment_history(processed_at);
 CREATE INDEX idx_reviews_room ON reviews(room_id);
 CREATE INDEX idx_reviews_guest ON reviews(guest_id);
 CREATE INDEX idx_chat_guest ON chat_sessions(guest_id);
 CREATE INDEX idx_analytics_type ON analytics_events(event_type);
 CREATE INDEX idx_analytics_date ON analytics_events(created_at);
+CREATE INDEX idx_analytics_reference ON analytics_events(reference_type, reference_id);
+CREATE INDEX idx_manager_chat_manager ON manager_chat_sessions(manager_id);
+CREATE INDEX idx_manager_chat_date ON manager_chat_sessions(started_at);
+CREATE INDEX idx_manager_query_session ON manager_analytics_queries(chat_session_id);
+CREATE INDEX idx_manager_query_manager ON manager_analytics_queries(manager_id);
+CREATE INDEX idx_manager_query_date ON manager_analytics_queries(created_at);
+CREATE INDEX idx_manager_query_status ON manager_analytics_queries(status);

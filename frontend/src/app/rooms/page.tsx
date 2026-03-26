@@ -17,6 +17,16 @@ export default function RoomsPage() {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"price-asc" | "price-desc" | "rating">("price-asc");
 
+  const themeGradients = [
+    "from-[#0ea5e9] to-[#0369a1]", // ocean
+    "from-[#f97316] to-[#c9a84c]", // coral to gold
+    "from-[#0c1b2a] to-[#0ea5e9]", // navy to ocean
+    "from-[#c9a84c] to-[#e8d48b]", // gold
+    "from-[#f5f0e8] to-[#c9a84c]", // sand to gold
+  ];
+
+  const getGradient = (index: number) => themeGradients[index % themeGradients.length];
+
   useEffect(() => {
     roomsApi
       .list()
@@ -125,22 +135,23 @@ export default function RoomsPage() {
               >
                 <Link href={`/rooms/${room.id}`}>
                   <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 group border border-black/5">
-                    {/* Image placeholder */}
-                    <div className="h-48 bg-gradient-to-br from-[var(--navy)] to-[var(--ocean)] relative overflow-hidden">
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <Waves
-                          size={48}
-                          className="text-white/20 group-hover:text-white/30 transition"
-                        />
+                    {/* Room Image Placeholder with Theme Colors */}
+                    <div className={`h-48 bg-gradient-to-br ${getGradient(filtered.indexOf(room))} relative overflow-hidden flex items-center justify-center`}>
+                      <div className="text-center text-white/60">
+                        <Waves size={32} className="mx-auto mb-2" />
+                        <p className="text-xs font-medium">{room.room_type}</p>
                       </div>
+                      {/* Overlay gradient */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                      
                       {/* Tier badge */}
                       {room.tier && (
-                        <span className="absolute top-3 left-3 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--gold)] text-white uppercase">
+                        <span className="absolute top-3 left-3 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--gold)] text-white uppercase shadow-md">
                           {room.tier}
                         </span>
                       )}
                       {/* Price */}
-                      <span className="absolute bottom-3 right-3 text-sm font-bold bg-black/40 text-white px-3 py-1 rounded-full backdrop-blur-sm">
+                      <span className="absolute bottom-3 right-3 text-sm font-bold bg-black/60 text-white px-3 py-1 rounded-full backdrop-blur-sm">
                         ${room.base_price}<span className="text-xs font-normal">/night</span>
                       </span>
                     </div>
@@ -151,7 +162,7 @@ export default function RoomsPage() {
                         {room.room_name}
                       </h3>
                       <p className="text-xs text-[var(--muted)] mt-0.5">
-                        {room.wing} · {room.room_number} · Floor {room.floor}
+                        {room.room_number} · Floor {room.floor}
                       </p>
 
                       <div className="flex items-center gap-4 mt-3 text-xs text-[var(--muted)]">

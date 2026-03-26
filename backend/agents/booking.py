@@ -18,7 +18,7 @@ BOOKING_TOOLS = [
                 "properties": {
                     "check_in": {"type": "string", "description": "Check-in date in YYYY-MM-DD format"},
                     "check_out": {"type": "string", "description": "Check-out date in YYYY-MM-DD format"},
-                    "wing": {"type": "string", "description": "Wing name: Coral, Horizon, Palm, or Reef", "enum": ["Coral", "Horizon", "Palm", "Reef"]},
+                    "wing": {"type": "string", "description": "Wing name: Coral Wing, Horizon Wing, Palm Wing, or Reef Wing", "enum": ["Coral Wing", "Horizon Wing", "Palm Wing", "Reef Wing"]},
                     "view_type": {"type": "string", "description": "Preferred view", "enum": ["ocean", "ocean_panoramic", "garden", "pool", "beach", "sunset", "marina", "courtyard"]},
                     "min_price": {"type": "number", "description": "Minimum price per night in USD"},
                     "max_price": {"type": "number", "description": "Maximum price per night in USD"},
@@ -104,17 +104,63 @@ Resort details:
 - Views: ocean, ocean_panoramic, garden, pool, beach, sunset, marina, courtyard
 - Price range: $150 - $3000/night
 
-When searching rooms:
-- Always present results clearly with room name, type, wing, floor, view, price, and key amenities
-- Highlight the best options based on the guest's preferences
-- Mention the 3D resort viewer where they can see rooms visually
+BOOKING FLOW - Guide users through these steps:
+1. **Collect Travel Dates**: Ask for check-in and check-out dates if not provided
+2. **Understand Preferences**: Ask about budget, preferred view, wing, and capacity if needed
+3. **Search Rooms**: Call search_available_rooms with the collected details
+4. **Present Options**: Show top 3-5 room options with name, wing, view, price, and key amenities
+5. **Get Room Selection**: Ask which room they prefer (by name or ID)
+6. **IMPORTANT - Get Room Details**: When user specifies a room (e.g. "R302" or "Reef Deluxe"), FIRST call get_room_details with that room number to get the room ID
+7. **Get Guest Details**: Name, email, phone number, number of guests, special requests
+8. **Confirm & Book**: Summarize booking details and call create_booking with the numeric room_id from step 6
+9. **Provide Reference**: Share booking reference (GM...) and booking confirmation details
+
+CRITICAL: The create_booking function requires:
+- room_id: INTEGER (obtained from get_room_details response)
+- check_in/check_out: YYYY-MM-DD format
+- guest names, email: required
+
+When user selects a room:
+- If they give a room number like "R302", "C103", etc., call get_room_details(room_number) to get the actual room_id
+- Extract the "id" field from the response - this is what create_booking needs
+- DO NOT guess or make up a room_id - always get it from get_room_details first
+
+Example flow:
+1. User: "Book the Reef Deluxe room R302"
+2. Agent: Call get_room_details(room_id="R302")
+3. Response includes: {"id": 42, "room_number": "R302", "room_name": "Reef Deluxe", ...}
+4. Agent: Use room_id=42 when calling create_booking
 
 When booking:
+- Collect ALL required info: first name, last name, email, check-in, check-out, room_id
+- Optional info: phone, num_guests, special_requests
 - Confirm all details before creating the booking
-- Provide the booking reference number (GM...) after creation
-- Mention total price and check-in/check-out dates
+- Provide the booking reference number (GM...) after creation with total price
 
-Be warm, professional, and helpful. Use the guest's name when possible."""
+BE PROACTIVE:
+- If the guest mentions wanting to book, ask for dates first
+- Don't wait for them to ask — guide the conversation forward
+- Use natural language and be warm and professional
+- Summarize options clearly before asking for selection
+- Always confirm critical details before booking
+
+EXAMPLE BOOKING FLOW:
+1. Guest: "I want to book a room"
+   Agent: "Excellent! I'd be happy to help. First, when would you like to check in and out? (YYYY-MM-DD format)"
+
+2. Guest: "Check in March 28, check out March 31"
+   Agent: "Perfect! Now, do you have preferences for: views (ocean/garden/sunset), budget per night, which wing, and how many guests?"
+
+3. Guest: "Ocean view, around $500/night, 2 people"
+   Agent: [CALLS search_available_rooms] "Great! Here are options: ..."
+
+4. Guest: "I like room X"
+   Agent: "Excellent! Now I need your details - first name, last name, email, phone?"
+
+5. Guest: "John Smith, john@example.com, +1-555-1234"
+   Agent: "Perfect! Let me confirm the booking then create it. [CALLS create_booking] ✓ Booking confirmed! Reference: GM..."
+
+TONE: Warm, professional, proactive. Always guide the guest forward in the conversation."""
 
 
 class BookingAgent(BaseAgent):
@@ -156,9 +202,12 @@ class BookingAgent(BaseAgent):
             # LLM sometimes passes room_number (string like "C103") instead of integer ID
             if isinstance(room_id, str) and not room_id.isdigit():
                 from sqlalchemy import select
+                from sqlalchemy.orm import selectinload
                 from db.models import Room as RoomModel
                 result = await db.execute(
-                    select(RoomModel).where(RoomModel.room_number == room_id)
+                    select(RoomModel)
+                    .options(selectinload(RoomModel.wing), selectinload(RoomModel.room_type), selectinload(RoomModel.reviews))
+                    .where(RoomModel.room_number == room_id)
                 )
                 room = result.scalar_one_or_none()
             else:

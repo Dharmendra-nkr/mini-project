@@ -1,15 +1,22 @@
-"""Base agent class with Groq LLM client (OpenAI-compatible)."""
+"""Base agent class with Groq LLM client (primary) with OpenRouter fallback."""
 from openai import AsyncOpenAI
 from config import settings
 import json
 
-# Groq client using OpenAI SDK
-groq_client = AsyncOpenAI(
-    api_key=settings.groq_api_key,
-    base_url="https://api.groq.com/openai/v1",
-)
-
-MODEL = "llama-3.3-70b-versatile"
+# Groq client is primary (free, unlimited)
+# Falls back to OpenRouter if OpenRouter key is configured and Groq is unavailable
+if settings.groq_api_key:
+    llm_client = AsyncOpenAI(
+        api_key=settings.groq_api_key,
+        base_url="https://api.groq.com/openai/v1",
+    )
+    MODEL = "llama-3.3-70b-versatile"  # Groq model
+else:
+    llm_client = AsyncOpenAI(
+        api_key=settings.openrouter_api_key,
+        base_url="https://openrouter.ai/api/v1",
+    )
+    MODEL = "anthropic/claude-3.5-sonnet"  # OpenRouter model
 
 
 class BaseAgent:
@@ -21,20 +28,20 @@ class BaseAgent:
         self.tools = tools or []
 
     async def chat(self, messages: list[dict], **kwargs) -> dict:
-        """Send messages to Groq and get a response."""
+        """Send messages to LLM (OpenRouter/Groq) and get a response."""
         full_messages = [{"role": "system", "content": self.system_prompt}] + messages
 
         params = {
             "model": MODEL,
             "messages": full_messages,
             "temperature": 0.7,
-            "max_tokens": 1024,
+            "max_tokens": 256,
         }
         if self.tools:
             params["tools"] = self.tools
             params["tool_choice"] = "auto"
 
-        response = await groq_client.chat.completions.create(**params)
+        response = await llm_client.chat.completions.create(**params)
         return response.choices[0].message
 
     async def chat_with_tool_execution(
@@ -48,7 +55,7 @@ class BaseAgent:
 
             if not response.tool_calls:
                 return {
-                    "content": response.content,
+                    "content": response.content or "",
                     "role": "assistant",
                 }
 
@@ -87,4 +94,4 @@ class BaseAgent:
 
         # If we exhausted tool rounds, get a final response
         final = await self.chat(current_messages)
-        return {"content": final.content, "role": "assistant"}
+        return {"content": final.content or "", "role": "assistant"}

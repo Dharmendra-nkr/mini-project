@@ -1,0 +1,170 @@
+{
+  "total_cases": 20,
+  "sql_success_rate": 100.0,
+  "chart_accuracy": 25.0,
+  "non_empty_result_rate": 100.0,
+  "avg_latency_ms": 6.9,
+  "p95_latency_ms": 90.95,
+  "details": [
+    {
+      "query": "What is the trend of our profit this month?",
+      "expected_chart": "line",
+      "predicted_chart": "line",
+      "sql_success": true,
+      "row_count": 31,
+      "latency_ms": 95
+    },
+    {
+      "query": "Show revenue over time for the last 30 days",
+      "expected_chart": "line",
+      "predicted_chart": "table",
+      "sql_success": true,
+      "row_count": 6,
+      "latency_ms": 2
+    },
+    {
+      "query": "Compare revenue by wing",
+      "expected_chart": "bar",
+      "predicted_chart": "bar",
+      "sql_success": true,
+      "row_count": 4,
+      "latency_ms": 14
+    },
+    {
+      "query": "Breakdown of bookings by room type",
+      "expected_chart": "bar",
+      "predicted_chart": "table",
+      "sql_success": true,
+      "row_count": 6,
+      "latency_ms": 2
+    },
+    {
+      "query": "Occupancy trend for this month",
+      "expected_chart": "line",
+      "predicted_chart": "table",
+      "sql_success": true,
+      "row_count": 6,
+      "latency_ms": 2
+    },
+    {
+      "query": "What percent of bookings come from each wing?",
+      "expected_chart": "pie",
+      "predicted_chart": "table",
+      "sql_success": true,
+      "row_count": 6,
+      "latency_ms": 2
+    },
+    {
+      "query": "Share of bookings by status",
+      "expected_chart": "pie",
+      "predicted_chart": "table",
+      "sql_success": true,
+      "row_count": 6,
+      "latency_ms": 2
+    },
+    {
+      "query": "Average rating by wing",
+      "expected_chart": "bar",
+      "predicted_chart": "table",
+      "sql_success": true,
+      "row_count": 6,
+      "latency_ms": 1
+    },
+    {
+      "query": "Show top room types by revenue",
+      "expected_chart": "bar",
+      "predicted_chart": "table",
+      "sql_success": true,
+      "row_count": 6,
+      "latency_ms": 2
+    },
+    {
+      "query": "How many bookings were cancelled this quarter?",
+      "expected_chart": "table",
+      "predicted_chart": "table",
+      "sql_success": true,
+      "row_count": 6,
+      "latency_ms": 2
+    },
+    {
+      "query": "Daily booking count this month",
+      "expected_chart": "line",
+      "predicted_chart": "table",
+      "sql_success": true,
+      "row_count": 6,
+      "latency_ms": 1
+    },
+    {
+      "query": "Which wing performs best in profit?",
+      "expected_chart": "bar",
+      "predicted_chart": "table",
+      "sql_success": true,
+      "row_count": 6,
+      "latency_ms": 1
+    },
+    {
+      "query": "Revenue split by booking channel",
+      "expected_chart": "pie",
+      "predicted_chart": "table",
+      "sql_success": true,
+      "row_count": 6,
+      "latency_ms": 1
+    },
+    {
+      "query": "List booking status summary",
+      "expected_chart": "table",
+      "predicted_chart": "table",
+      "sql_success": true,
+      "row_count": 6,
+      "latency_ms": 1
+    },
+    {
+      "query": "Compare occupancy across wings",
+      "expected_chart": "bar",
+      "predicted_chart": "table",
+      "sql_success": true,
+      "row_count": 6,
+      "latency_ms": 2
+    },
+    {
+      "query": "Give me monthly revenue progression",
+      "expected_chart": "line",
+      "predicted_chart": "table",
+      "sql_success": true,
+      "row_count": 6,
+      "latency_ms": 2
+    },
+    {
+      "query": "Distribution of guest loyalty tiers",
+      "expected_chart": "bar",
+      "predicted_chart": "table",
+      "sql_success": true,
+      "row_count": 6,
+      "latency_ms": 1
+    },
+    {
+      "query": "Top 10 rooms by booking count",
+      "expected_chart": "bar",
+      "predicted_chart": "table",
+      "sql_success": true,
+      "row_count": 6,
+      "latency_ms": 2
+    },
+    {
+      "query": "How is revenue changing week over week?",
+      "expected_chart": "line",
+      "predicted_chart": "table",
+      "sql_success": true,
+      "row_count": 6,
+      "latency_ms": 2
+    },
+    {
+      "query": "Show me a table of confirmed vs cancelled bookings",
+      "expected_chart": "table",
+      "predicted_chart": "table",
+      "sql_success": true,
+      "row_count": 6,
+      "latency_ms": 1
+    }
+  ]
+}

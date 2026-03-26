@@ -4,7 +4,7 @@ from typing import Optional
 from sqlalchemy import select, func, and_, or_, not_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from db.models import Room, Booking, Guest, Wing, RoomType, Review, BookingAddon
+from db.models import Room, Booking, Guest, Wing, RoomType, Review, BookingAddon, PaymentHistory
 import random
 import string
 
@@ -19,7 +19,12 @@ async def get_rooms(
     max_price: Optional[float] = None,
     capacity: Optional[int] = None,
 ) -> list[Room]:
-    query = select(Room).join(Wing).join(RoomType).where(Room.is_active == True)
+    query = (
+        select(Room)
+        .options(selectinload(Room.wing), selectinload(Room.room_type))
+        .join(Wing).join(RoomType)
+        .where(Room.is_active == True)
+    )
     if wing:
         query = query.where(Wing.name.ilike(f"%{wing}%"))
     if floor:
@@ -66,7 +71,9 @@ async def get_available_rooms(
         .subquery()
     )
     query = (
-        select(Room).join(Wing).join(RoomType)
+        select(Room)
+        .options(selectinload(Room.wing), selectinload(Room.room_type))
+        .join(Wing).join(RoomType)
         .where(Room.is_active == True, Room.id.not_in(select(booked_subq.c.room_id)))
     )
     if wing:
@@ -199,7 +206,12 @@ async def cancel_booking(db: AsyncSession, booking_ref: str) -> Booking:
 async def get_booking_by_ref(db: AsyncSession, booking_ref: str) -> Optional[Booking]:
     result = await db.execute(
         select(Booking)
-        .options(selectinload(Booking.room), selectinload(Booking.guest), selectinload(Booking.addons))
+        .options(
+            selectinload(Booking.room),
+            selectinload(Booking.guest),
+            selectinload(Booking.addons),
+            selectinload(Booking.payments),
+        )
         .where(Booking.booking_ref == booking_ref)
     )
     return result.scalar_one_or_none()

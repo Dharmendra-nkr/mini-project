@@ -24,7 +24,10 @@ async def list_rooms(
     return {"rooms": [{"id": r.id, "room_number": r.room_number, "room_name": r.room_name,
              "floor": r.floor, "view_type": r.view_type, "capacity": r.capacity,
              "base_price": float(r.base_price), "amenities": r.amenities,
-             "description": r.description, "mesh_id": r.mesh_id} for r in rooms],
+             "description": r.description, "photo_urls": r.photo_urls,
+             "mesh_id": r.mesh_id, "wing": r.wing.name if r.wing else None,
+             "room_type": r.room_type.name if r.room_type else None,
+             "tier": r.room_type.tier if r.room_type else None} for r in rooms],
             "count": len(rooms)}
 
 
@@ -60,7 +63,7 @@ async def available_rooms(
     )
     return {"rooms": [{"id": r.id, "room_number": r.room_number, "room_name": r.room_name,
              "floor": r.floor, "view_type": r.view_type, "capacity": r.capacity,
-             "base_price": float(r.base_price)} for r in rooms], "count": len(rooms)}
+             "base_price": float(r.base_price), "photo_urls": r.photo_urls} for r in rooms], "count": len(rooms)}
 
 
 @router.get("/{room_id}")

@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { MessageCircle, X, Send, RotateCcw, Volume2, Mic, MicOff } from "lucide-react";
+import { MessageCircle, X, Send, RotateCcw, Volume2, Mic, MicOff, Calendar, Eye, Check } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import { useRouter } from "next/navigation";
 import { chat, voice, ChatResponse } from "../lib/api";
+import { chatStore, SelectedRoom } from "../lib/chatStore";
 
 interface Message {
   role: "user" | "assistant";
@@ -33,8 +35,33 @@ export default function ChatWidget() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | undefined>();
+  const [selectedRoom, setSelectedRoom] = useState<SelectedRoom | undefined>();
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [checkIn, setCheckIn] = useState("");
+  const [checkOut, setCheckOut] = useState("");
+  const [bookingStep, setBookingStep] = useState<"dates" | "search" | "room" | "guest-details" | "confirm" | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
+
+  // Subscribe to store changes
+  useEffect(() => {
+    return chatStore.subscribe(() => {
+      const state = chatStore.getState();
+      if (state.selectedRoom) {
+        setSelectedRoom(state.selectedRoom);
+        // Show "Proceed with selected room" message
+        if (state.checkIn && state.checkOut) {
+          const roomMsg = `Selected: ${state.selectedRoom.room_name} (${state.selectedRoom.wing}) - $${state.selectedRoom.base_price}/night`;
+          setMessages((prev) => [
+            ...prev,
+            { role: "user", content: `I want to book ${roomMsg}` },
+          ]);
+          setBookingStep("guest-details");
+        }
+      }
+    });
+  }, []);
 
   // Auto scroll
   useEffect(() => {
@@ -70,16 +97,43 @@ export default function ChatWidget() {
   const sendMessage = useCallback(
     async (text: string) => {
       if (!text.trim() || loading) return;
+
+      // Handle special quick replies
+      if (text === "3D Viewer" || text.includes("3D")) {
+        router.push("/explore");
+        return;
+      }
+
       const userMsg: Message = { role: "user", content: text.trim() };
       setMessages((prev) => [...prev, userMsg]);
       setInput("");
       setLoading(true);
+
       try {
         const res: ChatResponse = await chat.send(text.trim(), sessionId);
         setSessionId(res.session_id);
+
+        // Parse quick replies to detect special actions
+        let quickReplies = res.quick_replies || [];
+        if (
+          text.toLowerCase().includes("available") ||
+          text.toLowerCase().includes("search")
+        ) {
+          quickReplies = [...quickReplies, "3D Viewer"];
+          setBookingStep("dates");
+        }
+
+        // Add 3D Viewer to hotel info replies
+        if (
+          text.toLowerCase().includes("resort") ||
+          text.toLowerCase().includes("info")
+        ) {
+          quickReplies = [...quickReplies, "3D Viewer"];
+        }
+
         setMessages((prev) => [
           ...prev,
-          { role: "assistant", content: res.message, quickReplies: res.quick_replies },
+          { role: "assistant", content: res.message, quickReplies },
         ]);
       } catch {
         setMessages((prev) => [
@@ -89,8 +143,23 @@ export default function ChatWidget() {
       }
       setLoading(false);
     },
-    [loading, sessionId]
+    [loading, sessionId, router]
   );
+
+  const submitDatePicker = useCallback(() => {
+    if (!checkIn || !checkOut || new Date(checkOut) <= new Date(checkIn)) {
+      alert("Please select valid dates (checkout after checkin)");
+      return;
+    }
+    chatStore.setDates(checkIn, checkOut);
+    setShowDatePicker(false);
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: `Check-in: ${checkIn}, Check-out: ${checkOut}` },
+    ]);
+    // Trigger search
+    sendMessage(`Check-in: ${checkIn}, Check-out: ${checkOut}`);
+  }, [checkIn, checkOut, sendMessage]);
 
   const resetChat = async () => {
     await chat.reset(sessionId).catch(() => {});
@@ -218,6 +287,40 @@ export default function ChatWidget() {
               </div>
             ))}
 
+            {/* Date Picker Widget */}
+            {showDatePicker && (
+              <div className="bg-white rounded-2xl p-3 shadow-sm border border-black/5 space-y-2">
+                <label className="text-xs font-bold text-[var(--navy)] flex items-center gap-1">
+                  <Calendar size={14} /> Check-in
+                </label>
+                <input
+                  type="date"
+                  value={checkIn}
+                  onChange={(e) => setCheckIn(e.target.value)}
+                  className="w-full text-sm px-3 py-2 border border-[var(--gold)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--gold)]/30"
+                  min={new Date().toISOString().split("T")[0]}
+                />
+
+                <label className="text-xs font-bold text-[var(--navy)] flex items-center gap-1">
+                  <Calendar size={14} /> Check-out
+                </label>
+                <input
+                  type="date"
+                  value={checkOut}
+                  onChange={(e) => setCheckOut(e.target.value)}
+                  className="w-full text-sm px-3 py-2 border border-[var(--gold)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--gold)]/30"
+                  min={checkIn || new Date().toISOString().split("T")[0]}
+                />
+
+                <button
+                  onClick={submitDatePicker}
+                  className="w-full bg-[var(--gold)] text-white text-xs font-bold py-2 rounded-lg hover:bg-[var(--gold-light)] transition flex items-center justify-center gap-1"
+                >
+                  <Check size={14} /> OK, Search Rooms
+                </button>
+              </div>
+            )}
+
             {/* Quick replies */}
             {messages.length > 0 &&
               messages[messages.length - 1].quickReplies?.length ? (
@@ -225,9 +328,20 @@ export default function ChatWidget() {
                 {messages[messages.length - 1].quickReplies!.map((qr) => (
                   <button
                     key={qr}
-                    onClick={() => sendMessage(qr)}
-                    className="text-xs px-3 py-1.5 rounded-full border border-[var(--gold)] text-[var(--gold)] hover:bg-[var(--gold)] hover:text-white transition"
+                    onClick={() => {
+                      if (qr === "Search rooms" || qr.includes("Search")) {
+                        setShowDatePicker(true);
+                      } else {
+                        sendMessage(qr);
+                      }
+                    }}
+                    className={`text-xs px-3 py-1.5 rounded-full transition ${
+                      qr === "3D Viewer"
+                        ? "bg-[var(--navy)] text-white border border-[var(--navy)]"
+                        : "border border-[var(--gold)] text-[var(--gold)] hover:bg-[var(--gold)] hover:text-white"
+                    }`}
                   >
+                    {qr === "3D Viewer" && <Eye size={12} className="inline mr-1" />}
                     {qr}
                   </button>
                 ))}

@@ -5,6 +5,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, Text, Html, Sky, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { AvailabilityRoom } from "../lib/api";
+import { chatStore } from "../lib/chatStore";
 
 /* ═══════════════════════════════════════════════
    COLOR & LAYOUT CONFIG
@@ -1101,6 +1102,15 @@ export default function ResortViewer({
 
   const handleBook = useCallback(
     (room: AvailabilityRoom) => {
+      // Send room selection to chat store
+      chatStore.setSelectedRoom({
+        id: room.id,
+        room_number: room.room_number,
+        room_name: room.room_name,
+        wing: room.wing || "",
+        view_type: room.view_type || "",
+        base_price: room.base_price,
+      });
       if (onBookRoom) onBookRoom(room);
     },
     [onBookRoom]
@@ -1126,7 +1136,10 @@ export default function ResortViewer({
         <ResortScene
           rooms={rooms}
           selectedRoom={selected}
-          onSelectRoom={setSelected}
+          onSelectRoom={(room) => {
+            setSelected(room);
+            handleBook(room);
+          }}
         />
       </Canvas>
     </div>

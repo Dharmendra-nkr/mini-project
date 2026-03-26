@@ -25,6 +25,7 @@ class ChatResponse(BaseModel):
     action: str | None = None
 
 
+
 @router.post("/", response_model=ChatResponse)
 async def chat(req: ChatRequest, db: AsyncSession = Depends(get_db)):
     """Send a message to the AI Concierge and get a response."""
@@ -37,22 +38,32 @@ async def chat(req: ChatRequest, db: AsyncSession = Depends(get_db)):
     history = _sessions[session_id]
     history.append({"role": "user", "content": req.message})
 
-    # Process through concierge
-    result = await concierge.process(history, db)
+    try:
+        # Process through concierge
+        result = await concierge.process(history, db)
 
-    # Store assistant response in history
-    history.append({"role": "assistant", "content": result["message"]})
+        # Store assistant response in history
+        history.append({"role": "assistant", "content": result["message"]})
 
-    # Keep only last 30 messages to avoid token overflow
-    if len(history) > 30:
-        _sessions[session_id] = history[-30:]
+        # Keep only last 30 messages to avoid token overflow
+        if len(history) > 30:
+            _sessions[session_id] = history[-30:]
 
-    return ChatResponse(
-        session_id=session_id,
-        message=result["message"],
-        quick_replies=result.get("quick_replies", []),
-        action=result.get("action"),
-    )
+        return ChatResponse(
+            session_id=session_id,
+            message=result["message"],
+            quick_replies=result.get("quick_replies", []),
+            action=result.get("action"),
+        )
+    except Exception as e:
+        # Log the error (optional: print or use logging)
+        print(f"[ERROR] Chat endpoint: {e}")
+        return ChatResponse(
+            session_id=session_id,
+            message="I'm sorry, something went wrong on my end. Please try again or rephrase your request.",
+            quick_replies=["Try again", "Start over"],
+            action=None,
+        )
 
 
 @router.post("/reset")

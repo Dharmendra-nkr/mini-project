@@ -1,6 +1,7 @@
 """Generate booking add-ons, reviews, manager accounts, and analytics events."""
 import random
 import json
+import string
 import psycopg2
 from datetime import date, timedelta, datetime
 
@@ -100,6 +101,103 @@ cur.executemany("""
 
 conn.commit()
 print(f"Inserted {len(addons)} booking add-ons.")
+
+# ========== PAYMENT HISTORY ==========
+print("Generating payment history...")
+
+cur.execute("""
+    SELECT id, guest_id, total_price, payment_status, status, booked_at, cancelled_at, booked_via
+    FROM bookings;
+""")
+all_bookings = cur.fetchall()
+
+PAYMENT_METHODS = ["card"] * 65 + ["upi"] * 15 + ["wallet"] * 10 + ["bank_transfer"] * 7 + ["cash"] * 3
+GATEWAYS = ["stripe"] * 45 + ["razorpay"] * 30 + ["paypal"] * 20 + ["cashier"] * 5
+
+def gen_txn_id(prefix="TXN"):
+    return prefix + "".join(random.choices(string.ascii_uppercase + string.digits, k=12))
+
+payments = []
+
+for booking_id, guest_id, total_price, payment_status, booking_status, booked_at, cancelled_at, booked_via in all_bookings:
+    total_price = float(total_price)
+    method = random.choice(PAYMENT_METHODS)
+    gateway = "cashier" if method == "cash" else random.choice(GATEWAYS)
+
+    base_ts = booked_at or datetime(2025, 12, 1)
+
+    # Around 30% paid bookings have split charge flow (authorization + capture)
+    if payment_status == "paid" and random.random() < 0.3 and method != "cash":
+        auth_amt = round(total_price * random.uniform(0.25, 0.45), 2)
+        capture_amt = round(total_price - auth_amt, 2)
+
+        payments.append((
+            booking_id, guest_id, auth_amt, "USD", "authorization", method, gateway,
+            gen_txn_id("AUTH"), "succeeded", 1,
+            "Pre-authorization at booking time", json.dumps({"channel": booked_via}),
+            base_ts + timedelta(minutes=random.randint(1, 20)),
+        ))
+        payments.append((
+            booking_id, guest_id, capture_amt, "USD", "capture", method, gateway,
+            gen_txn_id("CAP"), "succeeded", 1,
+            "Captured before check-in", json.dumps({"channel": booked_via}),
+            base_ts + timedelta(days=random.randint(1, 7), minutes=random.randint(5, 50)),
+        ))
+    elif payment_status == "paid":
+        payments.append((
+            booking_id, guest_id, round(total_price, 2), "USD", "charge", method, gateway,
+            gen_txn_id("CHG"), "succeeded", 1,
+            "Full charge", json.dumps({"channel": booked_via}),
+            base_ts + timedelta(minutes=random.randint(1, 30)),
+        ))
+    elif payment_status == "pending":
+        # Pending bookings usually have one pending attempt, occasionally a failed retry trail.
+        payments.append((
+            booking_id, guest_id, round(total_price, 2), "USD", "authorization", method, gateway,
+            gen_txn_id("PND"), "pending", 1,
+            "Payment pending confirmation", json.dumps({"channel": booked_via}),
+            base_ts + timedelta(minutes=random.randint(1, 30)),
+        ))
+        if random.random() < 0.2:
+            payments.append((
+                booking_id, guest_id, round(total_price, 2), "USD", "charge", method, gateway,
+                gen_txn_id("FLD"), "failed", 2,
+                "Retry failed", json.dumps({"reason": "insufficient_funds"}),
+                base_ts + timedelta(hours=random.randint(2, 24)),
+            ))
+    elif payment_status == "refunded":
+        # First successful charge, then full or partial refund.
+        charged_amount = round(total_price, 2)
+        payments.append((
+            booking_id, guest_id, charged_amount, "USD", "charge", method, gateway,
+            gen_txn_id("CHG"), "succeeded", 1,
+            "Initial charge before cancellation", json.dumps({"channel": booked_via}),
+            base_ts + timedelta(minutes=random.randint(1, 30)),
+        ))
+
+        is_partial = random.random() < 0.25
+        refund_amount = round(charged_amount * random.uniform(0.4, 0.8), 2) if is_partial else charged_amount
+        refund_status = "partially_refunded" if is_partial else "refunded"
+        txn_type = "partial_refund" if is_partial else "refund"
+
+        refund_ts = cancelled_at or (base_ts + timedelta(days=random.randint(1, 12)))
+        payments.append((
+            booking_id, guest_id, refund_amount, "USD", txn_type, method, gateway,
+            gen_txn_id("RFD"), refund_status, 1,
+            "Refund issued after cancellation", json.dumps({"policy": "standard_cancellation"}),
+            refund_ts + timedelta(minutes=random.randint(10, 120)),
+        ))
+
+cur.executemany("""
+    INSERT INTO payment_history (
+        booking_id, guest_id, amount, currency, transaction_type, payment_method,
+        gateway, gateway_txn_id, status, attempt_no, notes, metadata, processed_at
+    )
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+""", payments)
+
+conn.commit()
+print(f"Inserted {len(payments)} payment history rows.")
 
 # ========== REVIEWS ==========
 print("Generating reviews...")
@@ -260,7 +358,10 @@ print(f"Inserted {len(events)} analytics events.")
 
 # ========== FINAL SUMMARY ==========
 print("\n===== DATABASE SUMMARY =====")
-tables = ["wings", "room_types", "rooms", "guests", "bookings", "booking_addons", "reviews", "managers", "analytics_events"]
+tables = [
+    "wings", "room_types", "rooms", "guests", "bookings",
+    "booking_addons", "payment_history", "reviews", "managers", "analytics_events"
+]
 for t in tables:
     cur.execute(f"SELECT COUNT(*) FROM {t};")
     print(f"  {t}: {cur.fetchone()[0]} rows")

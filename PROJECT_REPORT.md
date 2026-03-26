@@ -55,7 +55,7 @@ The platform enables guests to explore a luxury oceanfront resort in 3D, chat wi
                                │                                          │
 ┌──────────────────────────────▼──────────────────────────────────────────┐
 │                     PostgreSQL Database                                  │
-│        10 Tables · 120 Rooms · 500 Guests · 2000 Bookings               │
+│        11 Tables · 120 Rooms · 500 Guests · 2000 Bookings               │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -109,8 +109,8 @@ The platform enables guests to explore a luxury oceanfront resort in 3D, chat wi
 ## 4. Database Schema
 
 **Database:** `mini` on `localhost:5432`  
-**Tables:** 10  
-**Seed Data:** 4 wings, 10 room types, 120 rooms, 500 guests, 2000 bookings, 1050 add-ons, 495 reviews, 6 managers, 3000 analytics events
+**Tables:** 13  
+**Seed Data:** 4 wings, 10 room types, 120 rooms, 500 guests, 2000 bookings, 1050 add-ons, ~2500 payment history rows, 495 reviews, 6 managers, 3000 analytics events
 
 ### 4.1 Entity-Relationship Summary
 
@@ -122,10 +122,13 @@ The platform enables guests to explore a luxury oceanfront resort in 3D, chat wi
 | **Guest** | 500 | first_name, last_name, email, phone, nationality, loyalty_tier, total_stays, preferences (JSONB) | → Bookings, Reviews |
 | **Booking** | 2000 | booking_ref (GM...), check_in, check_out, num_guests, status, total_price, payment_status, booked_via | → Guest, Room, Addons, Reviews |
 | **BookingAddon** | 1050 | addon_type, addon_name, price, quantity, scheduled_date, status | → Booking |
+| **PaymentHistory** | ~2500 | booking_id, guest_id, amount, transaction_type, payment_method, status, processed_at | → Booking, Guest |
 | **Review** | 495 | overall_rating, cleanliness/service/location/value ratings, title, comment | → Booking, Guest, Room |
-| **Manager** | 6 | name, email, password_hash, role, permissions (JSONB) | — |
+| **Manager** | 6 | name, email, password_hash, role, permissions (JSONB) | → ChatSessions, AnalyticsQueries |
 | **ChatSession** | — | session_id (UUID), messages (JSONB), agent_type, outcome | → Guest, Booking |
-| **AnalyticsEvent** | 3000 | event_type, source, metadata (JSONB) | — |
+| **AnalyticsEvent** | 3000 | event_type, source, metadata (JSONB), reference_type, reference_id | — |
+| **ManagerChatSession** | — | session_id (UUID), manager_id (FK), messages (JSONB), status | → Manager, AnalyticsQueries |
+| **ManagerAnalyticsQuery** | — | chat_session_id (FK), manager_id (FK), natural_language_query, generated_sql, chart_type, chart_config (JSONB), result_data (JSONB), insights, execution_ms, status | → ManagerChatSession, Manager |
 
 ### 4.2 Resort Layout
 
@@ -209,6 +212,45 @@ The system implements a **hierarchical multi-agent architecture** using the **Gr
 |---|---|
 | `get_resort_analytics` | Total revenue, rooms occupied today, occupancy rate %, avg guest rating, monthly revenue trend, revenue by wing, top 10 rooms by booking count |
 
+### 5.7 ManagerAnalyticsAgent (Natural Language SQL Generation)
+
+**Role:** Translates natural language analytics questions from managers into SQL queries with automatic chart type detection and AI-generated business insights.
+
+**Key Features:**
+- **Natural Language to SQL:** Converts manager questions into optimized PostgreSQL queries
+- **Chart Type Detection:** Analyzes query keywords to determine visualization type:
+  - `"trend/over time/growth"` → LINE chart
+  - `"compare/vs/breakdown"` → BAR chart
+  - `"share/percent/proportion"` → PIE chart
+  - Default → TABLE
+- **Permission-Based Access:** Respects `view_guest_pii` flag to strip sensitive data
+- **AI Insights:** Generates business insights summarizing data patterns
+- **Query Audit Trail:** Persists all queries for compliance and replay
+
+**Example Flow:**
+```
+Manager: "What is the trend of our profit this month?"
+  ↓
+ManagerAnalyticsAgent analyzes keywords ("profit", "trend", "month")
+  ↓
+Generates SQL: SELECT DATE_TRUNC('day', ...), SUM(amount) FROM payment_history ...
+  ↓
+Detects chart_type: "line" (from "trend" keyword)
+  ↓
+Executes query, returns 30 rows (daily revenue)
+  ↓
+AI generates insights: "Revenue peaked on March 14 (+32% above avg), dip on March 9 coincided with low occupancy"
+  ↓
+Response: {chart_type: "line", data: [...], insights: "...", execution_ms: 142}
+```
+
+**System Prompt Includes:**
+- Full database schema (tables, columns, relationships)
+- Chart type detection rules
+- Permission context (which guest fields are accessible)
+- Response JSON format specification
+- Query optimization hints
+
 ---
 
 ## 6. API Endpoints
@@ -260,6 +302,8 @@ The system implements a **hierarchical multi-agent architecture** using the **Gr
 | GET | `/api/manager/guests` | Guest list | JWT |
 | GET | `/api/manager/reviews` | Review list with ratings | JWT |
 | POST | `/api/manager/ai-insights` | AI-generated business insights | JWT |
+| POST | `/api/manager/analytics/chat` | Chat with AI agent for analytics queries | JWT |
+| GET | `/api/manager/analytics/history` | Query history (audit trail) | JWT |
 
 ---
 
@@ -331,9 +375,10 @@ MINI_PRj/
 │   │   ├── concierge.py            # ConciergeAgent (orchestrator)
 │   │   ├── booking.py              # BookingAgent (5 tools)
 │   │   ├── recommendation.py       # RecommendationAgent (scoring)
-│   │   └── analytics.py            # AnalyticsAgent (manager KPIs)
+│   │   ├── analytics.py            # AnalyticsAgent (manager KPIs)
+│   │   └── manager_analytics.py    # ManagerAnalyticsAgent (natural language SQL)
 │   ├── db/                         # Database layer
-│   │   ├── models.py               # SQLAlchemy models (10 tables)
+│   │   ├── models.py               # SQLAlchemy models (13 tables)
 │   │   ├── queries.py              # Reusable async queries
 │   │   ├── session.py              # Async session factory
 │   │   ├── schema.sql              # DDL schema
@@ -346,7 +391,7 @@ MINI_PRj/
 │       ├── bookings.py             # Booking CRUD
 │       ├── chat.py                 # AI chat endpoint
 │       ├── voice.py                # Text-to-speech
-│       └── manager.py              # Manager dashboard APIs
+│       └── manager.py              # Manager dashboard APIs (+ analytics)
 │
 ├── frontend/                       # Next.js 14 frontend
 │   ├── .env.local                  # API URL config
@@ -376,8 +421,8 @@ MINI_PRj/
 └── .gitignore
 ```
 
-**Total Files:** ~52 (excluding node_modules, .git, __pycache__)  
-**Backend:** 19 Python files  
+**Total Files:** ~53 (excluding node_modules, .git, __pycache__)  
+**Backend:** 20 Python files  
 **Frontend:** 16 TypeScript/React files  
 
 ---

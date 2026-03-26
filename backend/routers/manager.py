@@ -1,18 +1,24 @@
 """Manager router — analytics dashboard, guest management, AI analytics."""
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+import uuid
 
 from db.session import get_db
-from db.models import Manager, Booking, Guest, Room, RoomType, Review, AnalyticsEvent
+from db.models import (
+    Manager, Booking, Guest, Room, RoomType, Review, AnalyticsEvent,
+    ManagerChatSession, ManagerAnalyticsQuery
+)
 from db import queries
 from routers.auth import get_current_manager
 from agents.analytics import AnalyticsAgent
+from agents.manager_analytics import ManagerAnalyticsAgent
 
 router = APIRouter(prefix="/api/manager", tags=["manager"])
 
 analytics_agent = AnalyticsAgent()
+manager_analytics_agent = ManagerAnalyticsAgent()
 
 
 @router.get("/dashboard")
@@ -214,3 +220,207 @@ async def ai_insights(
     messages = [{"role": "user", "content": question}]
     result = await analytics_agent.process(messages, db)
     return {"insight": result["content"], "manager": manager.name}
+
+
+@router.post("/analytics/chat")
+async def manager_analytics_chat(
+    message: str = Query(..., description="Natural language analytics query"),
+    session_id: str | None = None,
+    manager: Manager = Depends(get_current_manager),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Chat with AI analytics agent — natural language to SQL + chart.
+    
+    Example: "What is the trend of our profit this month?"
+    Response: {chart_type: "line", title: "...", data: [...], insights: "..."}
+    """
+    import time
+    
+    # Get or create manager chat session
+    if session_id:
+        session_result = await db.execute(
+            select(ManagerChatSession).where(
+                (ManagerChatSession.session_id == session_id) &
+                (ManagerChatSession.manager_id == manager.id)
+            )
+        )
+        chat_session = session_result.scalars().first()
+    else:
+        chat_session = None
+    
+    if not chat_session:
+        chat_session = ManagerChatSession(
+            session_id=uuid.uuid4(),
+            manager_id=manager.id,
+            messages=[]
+        )
+        db.add(chat_session)
+        await db.flush()
+    
+    # Update session messages
+    chat_session.messages.append({
+        "role": "user",
+        "content": message,
+        "timestamp": datetime.utcnow().isoformat()
+    })
+    
+    # Get manager permissions
+    permissions = manager.permissions or {}
+    
+    # Call ManagerAnalyticsAgent to generate SQL + chart config
+    try:
+        analysis = await manager_analytics_agent.query(message, permissions)
+    except Exception as e:
+        return {
+            "error": str(e),
+            "session_id": str(chat_session.session_id),
+            "status": "error"
+        }
+    
+    # Execute generated SQL
+    sql = analysis.get("sql", "")
+    if not sql:
+        return {
+            "error": "Failed to generate SQL",
+            "session_id": str(chat_session.session_id),
+            "status": "error"
+        }
+    
+    execution_result = await manager_analytics_agent.execute_and_capture(
+        db, sql, analysis.get("chart_type", "table")
+    )
+    
+    if not execution_result["success"]:
+        # The SQL execution failed and leaves the transaction in an aborted state.
+        # Roll back before attempting to insert the error audit record.
+        await db.rollback()
+
+        # Log failed query
+        failed_query = ManagerAnalyticsQuery(
+            chat_session_id=chat_session.id,
+            manager_id=manager.id,
+            natural_language_query=message,
+            generated_sql=sql,
+            chart_type=analysis.get("chart_type"),
+            status="error",
+            error_message=execution_result["error"],
+            execution_ms=execution_result["execution_ms"]
+        )
+        db.add(failed_query)
+        await db.commit()
+        
+        return {
+            "error": execution_result["error"],
+            "session_id": str(chat_session.session_id),
+            "status": "error"
+        }
+    
+    # Generate AI insights
+    data = execution_result["data"]
+    inferred_chart_type = manager_analytics_agent.infer_chart_type_from_data(
+        message,
+        data,
+        analysis.get("chart_type", "table")
+    )
+    try:
+        insights = await manager_analytics_agent.generate_insights(
+            data, message, inferred_chart_type
+        )
+    except Exception as e:
+        insights = f"Data processed successfully ({len(data)} rows)"
+    
+    # Create analytics query record (for audit/replay)
+    analytics_query = ManagerAnalyticsQuery(
+        chat_session_id=chat_session.id,
+        manager_id=manager.id,
+        natural_language_query=message,
+        generated_sql=sql,
+        chart_type=inferred_chart_type,
+        chart_config={
+            "title": analysis.get("title", "Analytics Result"),
+            "x_axis": analysis.get("x_axis", ""),
+            "y_axis": analysis.get("y_axis", ""),
+            "x_label": analysis.get("x_label", ""),
+            "y_label": analysis.get("y_label", "")
+        },
+        result_data=data,
+        insights=insights,
+        execution_ms=execution_result["execution_ms"],
+        status="success"
+    )
+    db.add(analytics_query)
+    
+    # Update chat session with assistant response
+    chat_session.messages.append({
+        "role": "assistant",
+        "content": f"Generated {inferred_chart_type} chart with {len(data)} data points",
+        "timestamp": datetime.utcnow().isoformat(),
+        "query_id": None  # Will be set after insert
+    })
+    
+    await db.commit()
+    
+    # Update query_id in chat messages after insert
+    analytics_query_id = analytics_query.id
+    chat_session.messages[-1]["query_id"] = analytics_query_id
+    await db.commit()
+    
+    # Return response
+    return {
+        "session_id": str(chat_session.session_id),
+        "query_id": analytics_query_id,
+        "chart_type": inferred_chart_type,
+        "title": analysis.get("title", "Analytics Result"),
+        "x_label": analysis.get("x_label", ""),
+        "y_label": analysis.get("y_label", ""),
+        "data": data,
+        "insights": insights,
+        "row_count": len(data),
+        "execution_ms": execution_result["execution_ms"],
+        "status": "success"
+    }
+
+
+@router.get("/analytics/history")
+async def analytics_history(
+    session_id: str | None = None,
+    limit: int = Query(20, le=100),
+    manager: Manager = Depends(get_current_manager),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get manager's analytics query history."""
+    query = (
+        select(ManagerAnalyticsQuery)
+        .where(ManagerAnalyticsQuery.manager_id == manager.id)
+        .order_by(ManagerAnalyticsQuery.created_at.desc())
+        .limit(limit)
+    )
+    
+    if session_id:
+        query = query.where(
+            ManagerAnalyticsQuery.chat_session_id.in_(
+                select(ManagerChatSession.id).where(
+                    ManagerChatSession.session_id == session_id
+                )
+            )
+        )
+    
+    result = await db.execute(query)
+    queries_list = result.scalars().all()
+    
+    return {
+        "queries": [
+            {
+                "id": q.id,
+                "natural_language_query": q.natural_language_query,
+                "chart_type": q.chart_type,
+                "insights": q.insights,
+                "row_count": len(q.result_data or []),
+                "execution_ms": q.execution_ms,
+                "created_at": str(q.created_at),
+            }
+            for q in queries_list
+        ],
+        "count": len(queries_list)
+    }

@@ -182,8 +182,11 @@ class ConciergeAgent(BaseAgent):
                 json_start = content.index("{")
                 json_end = content.rindex("}") + 1
                 parsed = json.loads(content[json_start:json_end])
+                message = parsed.get("message", content)
+                if not message or not message.strip():
+                    message = "How can I assist you with your stay or booking today?"
                 return {
-                    "message": parsed.get("message", content),
+                    "message": message,
                     "quick_replies": parsed.get("quick_replies", []),
                     "action": parsed.get("action"),
                 }
@@ -191,8 +194,9 @@ class ConciergeAgent(BaseAgent):
             pass
 
         # Fallback: return plain text with default quick replies
+        fallback_message = content.strip() or "How can I assist you with your stay or booking today?"
         return {
-            "message": content,
+            "message": fallback_message,
             "quick_replies": [
                 "Search rooms",
                 "Get recommendations",

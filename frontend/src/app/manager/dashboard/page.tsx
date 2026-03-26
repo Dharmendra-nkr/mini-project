@@ -11,6 +11,7 @@ import {
   AlertTriangle, Hotel, Eye,
 } from "lucide-react";
 import { manager as managerApi } from "../../../lib/api";
+import AnalyticsDashboard from "../../../components/AnalyticsDashboard";
 
 /* ── Types ── */
 interface DashboardData {
@@ -494,65 +495,7 @@ export default function ManagerDashboard() {
 
             {/* === AI ANALYTICS === */}
             {activeTab === "analytics" && (
-              <div className="space-y-6">
-                <div className="bg-white rounded-xl p-6 shadow-sm border border-black/5">
-                  <h3 className="font-bold text-[var(--navy)] mb-2 flex items-center gap-2">
-                    <MessageSquare size={18} className="text-[var(--gold)]" /> AI Business Intelligence
-                  </h3>
-                  <p className="text-xs text-gray-400 mb-5">Ask questions about resort performance, revenue trends, guest patterns, and get AI-powered actionable insights.</p>
-                  <div className="flex gap-2 mb-4">
-                    <input value={aiQuestion} onChange={(e) => setAiQuestion(e.target.value)} onKeyDown={(e) => e.key === "Enter" && askAI()}
-                      placeholder="e.g., What are the revenue trends? Which wing needs attention?"
-                      className="flex-1 text-sm px-4 py-3 rounded-xl border border-gray-200 focus:border-[var(--gold)] focus:outline-none transition" />
-                    <button onClick={askAI} disabled={aiLoading || !aiQuestion.trim()}
-                      className="px-5 py-3 rounded-xl bg-[var(--navy)] text-white hover:bg-[var(--navy)]/90 disabled:opacity-40 transition flex items-center gap-2 text-sm font-medium">
-                      {aiLoading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Analyze
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap gap-2 mb-6">
-                    {["Full revenue and occupancy overview", "Which wing generates the most revenue?", "Guest satisfaction analysis", "Revenue trends — are we growing?", "Top performing rooms analysis", "Recommend pricing adjustments", "Seasonal booking patterns", "Cancellation rate analysis"].map((q) => (
-                      <button key={q} onClick={() => setAiQuestion(q)}
-                        className="text-xs px-3 py-1.5 rounded-full border border-gray-200 text-gray-500 hover:text-[var(--gold)] hover:border-[var(--gold)] transition">{q}</button>
-                    ))}
-                  </div>
-                  <AnimatePresence>
-                    {aiInsight && (
-                      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-                        className="p-5 bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-200 text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                        <div className="flex items-center gap-2 mb-3 text-xs text-gray-400"><MessageSquare size={12} /> AI Analytics Agent Response</div>
-                        {aiInsight}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                {/* Quick Summary Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div className="bg-white rounded-xl p-5 shadow-sm border border-black/5">
-                    <p className="text-xs font-medium text-gray-400 mb-3 uppercase tracking-wider">Booking Mix</p>
-                    {Object.entries(data.bookings_by_status || {}).map(([status, count]) => {
-                      const total = Object.values(data.bookings_by_status || {}).reduce((a, b) => a + b, 0);
-                      const pct = total > 0 ? (((count as number) / total) * 100).toFixed(1) : "0";
-                      return (<div key={status} className="flex justify-between py-1 text-sm"><span className="capitalize text-gray-600">{status.replace("_", " ")}</span><span className="font-medium text-[var(--navy)]">{pct}%</span></div>);
-                    })}
-                  </div>
-                  <div className="bg-white rounded-xl p-5 shadow-sm border border-black/5">
-                    <p className="text-xs font-medium text-gray-400 mb-3 uppercase tracking-wider">Revenue Breakdown</p>
-                    {(data.by_wing || []).map((w) => (
-                      <div key={w.wing} className="flex justify-between py-1 text-sm"><span className="text-gray-600">{w.wing}</span><span className="font-medium text-[var(--navy)]">${(w.revenue || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span></div>
-                    ))}
-                  </div>
-                  <div className="bg-white rounded-xl p-5 shadow-sm border border-black/5">
-                    <p className="text-xs font-medium text-gray-400 mb-3 uppercase tracking-wider">Key Metrics</p>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between"><span className="text-gray-600">Rooms</span><span className="font-medium text-[var(--navy)]">{data.total_rooms}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-600">Occupied Now</span><span className="font-medium text-[var(--navy)]">{data.occupied_rooms}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-600">Avg Revenue/Booking</span><span className="font-medium text-[var(--navy)]">${data.total_bookings > 0 ? Math.round(data.total_revenue / data.total_bookings).toLocaleString() : "0"}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-600">Guest Rating</span><span className="font-medium text-[var(--navy)]">{data.avg_rating?.toFixed(1)} / 5.0</span></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <AnalyticsDashboard />
             )}
 
           </motion.div>
