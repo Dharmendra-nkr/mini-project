@@ -181,56 +181,84 @@ class BookingAgent(BaseAgent):
             }
 
         async def handle_create_booking(args: dict) -> dict:
-            guest = await get_or_create_guest(
-                db, args["guest_first_name"], args["guest_last_name"],
-                args["guest_email"], args.get("guest_phone", ""),
-            )
-            booking = await create_booking(
-                db, guest.id, args["room_id"],
-                date.fromisoformat(args["check_in"]),
-                date.fromisoformat(args["check_out"]),
-                num_guests=args.get("num_guests", 1),
-                special_requests=args.get("special_requests"),
-            )
-            return {
-                "success": True,
-                "booking_ref": booking.booking_ref,
-                "total_price": float(booking.total_price),
-                "check_in": str(booking.check_in),
-                "check_out": str(booking.check_out),
-                "status": booking.status,
-            }
+            try:
+                required = ["room_id", "check_in", "check_out", "guest_first_name", "guest_last_name", "guest_email"]
+                missing = [k for k in required if k not in args]
+                if missing:
+                    return {"success": False, "error": f"Missing required fields: {', '.join(missing)}"}
+
+                room_id = int(args["room_id"])
+                check_in = date.fromisoformat(args["check_in"])
+                check_out = date.fromisoformat(args["check_out"])
+
+                if check_out <= check_in:
+                    return {"success": False, "error": "Check-out date must be after check-in"}
+
+                guest = await get_or_create_guest(
+                    db, args["guest_first_name"], args["guest_last_name"],
+                    args["guest_email"], args.get("guest_phone", ""),
+                )
+                booking = await create_booking(
+                    db, guest.id, room_id, check_in, check_out,
+                    num_guests=args.get("num_guests", 1),
+                    special_requests=args.get("special_requests"),
+                )
+                return {
+                    "success": True,
+                    "booking_ref": booking.booking_ref,
+                    "total_price": float(booking.total_price),
+                    "check_in": str(booking.check_in),
+                    "check_out": str(booking.check_out),
+                    "status": booking.status,
+                }
+            except ValueError as e:
+                return {"success": False, "error": f"Invalid data: {str(e)}"}
+            except Exception as e:
+                return {"success": False, "error": f"Booking creation failed: {str(e)}"}
 
         async def handle_cancel(args: dict) -> dict:
-            booking = await cancel_booking(db, args["booking_ref"])
-            return {
-                "success": True,
-                "booking_ref": booking.booking_ref,
-                "status": booking.status,
-                "payment_status": booking.payment_status,
-            }
+            try:
+                if "booking_ref" not in args:
+                    return {"success": False, "error": "Missing booking_ref"}
+                booking = await cancel_booking(db, args["booking_ref"])
+                return {
+                    "success": True,
+                    "booking_ref": booking.booking_ref,
+                    "status": booking.status,
+                    "payment_status": booking.payment_status,
+                }
+            except ValueError as e:
+                return {"success": False, "error": str(e)}
+            except Exception as e:
+                return {"success": False, "error": f"Cancel failed: {str(e)}"}
 
         async def handle_lookup(args: dict) -> dict:
-            booking = await get_booking_by_ref(db, args["booking_ref"])
-            if not booking:
-                return {"error": "Booking not found"}
-            return {
-                "booking_ref": booking.booking_ref,
-                "guest_name": f"{booking.guest.first_name} {booking.guest.last_name}",
-                "room_name": booking.room.room_name,
-                "room_number": booking.room.room_number,
-                "check_in": str(booking.check_in),
-                "check_out": str(booking.check_out),
-                "num_guests": booking.num_guests,
-                "status": booking.status,
-                "total_price": float(booking.total_price),
-                "payment_status": booking.payment_status,
-                "special_requests": booking.special_requests,
-                "addons": [
-                    {"name": a.addon_name, "type": a.addon_type, "price": float(a.price)}
-                    for a in booking.addons
-                ],
-            }
+            try:
+                if "booking_ref" not in args:
+                    return {"success": False, "error": "Missing booking_ref"}
+                booking = await get_booking_by_ref(db, args["booking_ref"])
+                if not booking:
+                    return {"success": False, "error": "Booking not found"}
+                return {
+                    "success": True,
+                    "booking_ref": booking.booking_ref,
+                    "guest_name": f"{booking.guest.first_name} {booking.guest.last_name}",
+                    "room_name": booking.room.room_name,
+                    "room_number": booking.room.room_number,
+                    "check_in": str(booking.check_in),
+                    "check_out": str(booking.check_out),
+                    "num_guests": booking.num_guests,
+                    "status": booking.status,
+                    "total_price": float(booking.total_price),
+                    "payment_status": booking.payment_status,
+                    "special_requests": booking.special_requests,
+                    "addons": [
+                        {"name": a.addon_name, "type": a.addon_type, "price": float(a.price)}
+                        for a in booking.addons
+                    ],
+                }
+            except Exception as e:
+                return {"success": False, "error": f"Lookup failed: {str(e)}"}
 
         return {
             "search_available_rooms": handle_search,

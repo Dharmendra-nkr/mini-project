@@ -162,7 +162,7 @@ async def create_booking(
         )
     )
     if booked.first():
-        raise ValueError("Room is not available for the selected dates.")
+        raise ValueError("Room not available for these dates. Please choose different dates or room.")
 
     room = await db.execute(select(Room).where(Room.id == room_id))
     room = room.scalar_one()
@@ -190,7 +190,7 @@ async def cancel_booking(db: AsyncSession, booking_ref: str) -> Booking:
     )
     booking = result.scalar_one_or_none()
     if not booking:
-        raise ValueError(f"Booking {booking_ref} not found.")
+        raise ValueError(f"Booking reference '{booking_ref}' not found.")
     if booking.status in ("cancelled", "checked_out"):
         raise ValueError(f"Booking is already {booking.status}.")
     booking.status = "cancelled"

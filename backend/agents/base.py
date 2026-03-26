@@ -75,7 +75,10 @@ class BaseAgent:
                 fn_args = json.loads(tool_call.function.arguments)
 
                 if fn_name in tool_handlers:
-                    result = await tool_handlers[fn_name](fn_args)
+                    try:
+                        result = await tool_handlers[fn_name](fn_args)
+                    except Exception as e:
+                        result = {"success": False, "error": f"Tool execution failed: {str(e)}"}
                 else:
                     result = {"error": f"Unknown function: {fn_name}"}
 
