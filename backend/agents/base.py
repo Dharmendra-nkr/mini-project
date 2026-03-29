@@ -1,6 +1,6 @@
 """Base agent class with Groq LLM client (OpenAI-compatible)."""
 from openai import AsyncOpenAI
-from config import settings
+from backend.config import settings
 import json
 
 # Groq client using OpenAI SDK

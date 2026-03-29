@@ -4,7 +4,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import httpx
 
-from config import settings
+from backend.config import settings
 
 router = APIRouter(prefix="/api/voice", tags=["voice"])
 

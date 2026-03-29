@@ -1,7 +1,7 @@
 """Analytics Agent — manager-only agent for business insights."""
 import json
-from agents.base import BaseAgent
-from db.queries import get_analytics_summary
+from .base import BaseAgent
+from backend.db.queries import get_analytics_summary
 
 ANALYTICS_TOOLS = [
     {

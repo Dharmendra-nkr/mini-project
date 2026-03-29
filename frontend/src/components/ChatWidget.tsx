@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { MessageCircle, X, Send, RotateCcw, Volume2, Mic, MicOff } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { chat, voice, ChatResponse } from "../lib/api";
@@ -9,6 +10,8 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   quickReplies?: string[];
+  type?: "text" | "date-picker" | "wing-picker" | "room-selected";
+  data?: any;
 }
 
 // Web Speech API types
@@ -33,13 +36,41 @@ export default function ChatWidget() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | undefined>();
+  const [dateRange, setDateRange] = useState<{ checkIn: string; checkOut: string } | null>(null);
+  const [selectedWing, setSelectedWing] = useState<string | null>(null);
+  const [selectedRoom, setSelectedRoom] = useState<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
 
   // Auto scroll
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, loading]);
+
+  // Listen for room selection from 3D explorer
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const stored = localStorage.getItem("selected_room");
+      if (stored) {
+        const room = JSON.parse(stored);
+        if (!selectedRoom || selectedRoom.id !== room.id) {
+          setSelectedRoom(room);
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content: `You selected room ${room.roomName} in ${room.wing}. Ready to proceed?`,
+              type: "room-selected",
+              data: room,
+            },
+          ]);
+        }
+        localStorage.removeItem("selected_room");
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [selectedRoom]);
 
   // Focus input when opened
   useEffect(() => {
@@ -67,6 +98,7 @@ export default function ChatWidget() {
     }
   }, [open, messages.length]);
 
+  // Enhanced sendMessage to handle booking flow
   const sendMessage = useCallback(
     async (text: string) => {
       if (!text.trim() || loading) return;
@@ -74,6 +106,20 @@ export default function ChatWidget() {
       setMessages((prev) => [...prev, userMsg]);
       setInput("");
       setLoading(true);
+      // Booking flow trigger
+      if (/\b(availability|available rooms|check availability|book room|show rooms)\b/i.test(text)) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: "Please select your check-in and check-out dates:",
+            type: "date-picker",
+          },
+        ]);
+        setLoading(false);
+        return;
+      }
+      // Fallback to normal chat
       try {
         const res: ChatResponse = await chat.send(text.trim(), sessionId);
         setSessionId(res.session_id);
@@ -199,7 +245,61 @@ export default function ChatWidget() {
                       : "bg-white text-[var(--foreground)] shadow-sm rounded-bl-md border border-black/5"
                   }`}
                 >
-                  {msg.role === "assistant" ? (
+                  {/* Custom message types */}
+                  {msg.type === "date-picker" ? (
+                    <DatePickerMessage
+                      onSelect={(checkIn, checkOut) => {
+                        setDateRange({ checkIn, checkOut });
+                        setMessages((prev) => [
+                          ...prev,
+                          {
+                            role: "assistant",
+                            content: "Which wing do you prefer?",
+                            type: "wing-picker",
+                          },
+                        ]);
+                      }}
+                    />
+                  ) : msg.type === "wing-picker" ? (
+                    <WingPickerMessage
+                      onSelect={(wing) => {
+                        setSelectedWing(wing);
+                        setMessages((prev) => [
+                          ...prev,
+                          {
+                            role: "assistant",
+                            content: `You selected ${wing}. You can also explore in 3D!`,
+                            type: "room-selected",
+                            data: { wing },
+                          },
+                        ]);
+                      }}
+                      on3D={() => {
+                        // Save state for 3D explorer
+                        if (dateRange) {
+                          localStorage.setItem("booking_dates", JSON.stringify(dateRange));
+                        }
+                        if (selectedWing) {
+                          localStorage.setItem("booking_wing", selectedWing);
+                        }
+                        router.push("/explore");
+                      }}
+                    />
+                  ) : msg.type === "room-selected" ? (
+                    <RoomSelectedMessage
+                      data={msg.data}
+                      onProceed={() => {
+                        // Proceed to booking details
+                        setMessages((prev) => [
+                          ...prev,
+                          {
+                            role: "assistant",
+                            content: "Please provide your details to confirm the booking.",
+                          },
+                        ]);
+                      }}
+                    />
+                  ) : msg.role === "assistant" ? (
                     <div className="chat-markdown">
                       <ReactMarkdown>{msg.content}</ReactMarkdown>
                       {/* TTS button */}
@@ -289,3 +389,84 @@ export default function ChatWidget() {
     </>
   );
 }
+
+// Date picker for check-in/check-out
+function DatePickerMessage({ onSelect }: { onSelect: (checkIn: string, checkOut: string) => void }) {
+  const [checkIn, setCheckIn] = useState("");
+  const [checkOut, setCheckOut] = useState("");
+  const today = new Date().toISOString().split("T")[0];
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex gap-2 items-center">
+        <label className="text-xs text-[var(--muted)]">Check-in:</label>
+        <input
+          type="date"
+          min={today}
+          value={checkIn}
+          onChange={e => setCheckIn(e.target.value)}
+          className="text-xs px-2 py-1 rounded border border-[var(--gold)]"
+        />
+      </div>
+      <div className="flex gap-2 items-center">
+        <label className="text-xs text-[var(--muted)]">Check-out:</label>
+        <input
+          type="date"
+          min={checkIn || today}
+          value={checkOut}
+          onChange={e => setCheckOut(e.target.value)}
+          className="text-xs px-2 py-1 rounded border border-[var(--gold)]"
+        />
+      </div>
+      <button
+        className="mt-2 rounded-full bg-[var(--gold)] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[var(--gold-light)] disabled:opacity-40"
+        disabled={!checkIn || !checkOut || checkOut <= checkIn}
+        onClick={() => onSelect(checkIn, checkOut)}
+      >
+        OK
+      </button>
+    </div>
+  );
+}
+
+// Wing picker with 3D viewer button
+function WingPickerMessage({ onSelect, on3D }: { onSelect: (wing: string) => void; on3D: () => void }) {
+  const wings = ["Coral Wing", "Palm Wing", "Horizon Wing", "Reef Wing"];
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap gap-2">
+        {wings.map(wing => (
+          <button
+            key={wing}
+            onClick={() => onSelect(wing)}
+            className="text-xs px-3 py-1.5 rounded-full border border-[var(--gold)] text-[var(--gold)] hover:bg-[var(--gold)] hover:text-white transition"
+          >
+            {wing}
+          </button>
+        ))}
+      </div>
+      <button
+        onClick={on3D}
+        className="mt-2 rounded-full bg-[var(--navy)] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[var(--gold)] hover:text-[var(--navy)] transition"
+      >
+        3D Viewer
+      </button>
+    </div>
+  );
+}
+
+// Room selected summary and proceed button
+function RoomSelectedMessage({ data, onProceed }: { data: any; onProceed: () => void }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="text-xs text-[var(--navy)] font-semibold">Room selected: {data?.roomName || data?.wing || "(from 3D)"}</div>
+      <button
+        onClick={onProceed}
+        className="rounded-full bg-[var(--gold)] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[var(--gold-light)]"
+      >
+        Proceed with booking
+      </button>
+    </div>
+  );
+}
+
+

@@ -1,8 +1,8 @@
 """Booking Agent — handles room search, availability, booking creation/cancellation."""
 import json
 from datetime import date, datetime
-from agents.base import BaseAgent
-from db.queries import (
+from .base import BaseAgent
+from backend.db.queries import (
     get_available_rooms, get_room_by_id, create_booking,
     cancel_booking, get_booking_by_ref, get_or_create_guest,
 )

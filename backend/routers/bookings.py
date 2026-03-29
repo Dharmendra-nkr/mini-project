@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.session import get_db
-from db import queries
+from backend.db.session import get_db
+from backend.db import queries
 
 router = APIRouter(prefix="/api/bookings", tags=["bookings"])
 

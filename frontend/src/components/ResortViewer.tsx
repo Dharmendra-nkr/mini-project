@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useMemo, useCallback } from "react";
+import { useRef, useState, useMemo, useCallback, useEffect } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, Text, Html, Sky, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
@@ -1099,9 +1099,34 @@ export default function ResortViewer({
 }) {
   const [selected, setSelected] = useState<AvailabilityRoom | null>(null);
 
+  // When a room is selected, store it in localStorage for chat pickup
+  useEffect(() => {
+    if (selected) {
+      localStorage.setItem("selected_room", JSON.stringify({
+        id: selected.id,
+        roomName: selected.room_name,
+        wing: selected.wing,
+        floor: selected.floor,
+        number: selected.room_number,
+        type: selected.type,
+        available: selected.available,
+      }));
+    }
+  }, [selected]);
+
   const handleBook = useCallback(
     (room: AvailabilityRoom) => {
       if (onBookRoom) onBookRoom(room);
+      // Also store in localStorage for chat
+      localStorage.setItem("selected_room", JSON.stringify({
+        id: room.id,
+        roomName: room.room_name,
+        wing: room.wing,
+        floor: room.floor,
+        number: room.room_number,
+        type: room.type,
+        available: room.available,
+      }));
     },
     [onBookRoom]
   );

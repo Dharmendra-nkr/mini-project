@@ -1,8 +1,8 @@
 """Recommendation Agent — suggests rooms based on guest preferences."""
 import json
 from datetime import date
-from agents.base import BaseAgent
-from db.queries import get_available_rooms
+from .base import BaseAgent
+from backend.db.queries import get_available_rooms
 
 RECOMMEND_TOOLS = [
     {

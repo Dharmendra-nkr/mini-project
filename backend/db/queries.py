@@ -4,7 +4,7 @@ from typing import Optional
 from sqlalchemy import select, func, and_, or_, not_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from db.models import Room, Booking, Guest, Wing, RoomType, Review, BookingAddon
+from .models import Room, Booking, Guest, Wing, RoomType, Review, BookingAddon
 import random
 import string
 

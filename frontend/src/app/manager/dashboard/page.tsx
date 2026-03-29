@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -321,30 +322,52 @@ export default function ManagerDashboard() {
                   </div>
 
                   {/* Monthly Revenue */}
-                  <div className="bg-white rounded-xl p-6 shadow-sm border border-black/5">
-                    <h3 className="font-bold text-[var(--navy)] mb-4 flex items-center gap-2">
-                      <TrendingUp size={16} className="text-[var(--gold)]" /> Monthly Revenue
-                    </h3>
-                    <div className="space-y-2">
-                      {(data.revenue_monthly || []).slice(-6).map((m) => {
-                        const maxRev = Math.max(...(data.revenue_monthly || []).slice(-6).map((x) => x.revenue));
-                        const pct = maxRev > 0 ? (m.revenue / maxRev) * 100 : 0;
-                        const monthLabel = (() => { try { return new Date(m.month + "T00:00:00").toLocaleDateString("en-US", { month: "short", year: "2-digit" }); } catch { return m.month; } })();
-                        return (
-                          <div key={m.month}>
-                            <div className="flex justify-between text-xs mb-1">
-                              <span className="text-gray-500">{monthLabel}</span>
-                              <span className="font-semibold text-gray-700">${m.revenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                            </div>
-                            <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                              <div className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
-                            </div>
-                            <p className="text-[10px] text-gray-400 mt-0.5">{m.bookings} bookings</p>
-                          </div>
-                        );
-                      })}
+                    <div className="bg-white rounded-xl p-6 shadow-sm border border-black/5">
+                      <h3 className="font-bold text-[var(--navy)] mb-4 flex items-center gap-2">
+                        <TrendingUp size={16} className="text-[var(--gold)]" /> Monthly Revenue
+                      </h3>
+                      <div style={{ width: "100%", height: 220 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={(data.revenue_monthly || []).slice(-6)} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                            <XAxis dataKey="month" tickFormatter={(m) => {
+                              try { return new Date(m + "T00:00:00").toLocaleDateString("en-US", { month: "short", year: "2-digit" }); } catch { return m; }
+                            }} />
+                            <YAxis tickFormatter={(v) => `$${v/1000}k`} />
+                            <Tooltip formatter={(v) => `$${v.toLocaleString()}`} labelFormatter={(m) => {
+                              try { return new Date(m + "T00:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" }); } catch { return m; }
+                            }} />
+                            <Bar dataKey="revenue" fill="#10b981" radius={[4, 4, 0, 0]} name="Revenue" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
                     </div>
-                  </div>
+                                {/* Booking Status Pie Chart */}
+                                <div className="bg-white rounded-xl p-6 shadow-sm border border-black/5">
+                                  <h3 className="font-bold text-[var(--navy)] mb-4 flex items-center gap-2">
+                                    <BarChart3 size={16} className="text-[var(--gold)]" /> Booking Status Distribution
+                                  </h3>
+                                  <div style={{ width: "100%", height: 220 }}>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                      <PieChart>
+                                        <Pie
+                                          data={Object.entries(data.bookings_by_status || {}).map(([status, count]) => ({ name: status.replace("_", " "), value: count }))}
+                                          dataKey="value"
+                                          nameKey="name"
+                                          cx="50%"
+                                          cy="50%"
+                                          outerRadius={70}
+                                          label
+                                        >
+                                          {Object.keys(data.bookings_by_status || {}).map((status, idx) => (
+                                            <Cell key={status} fill={["#10b981", "#3b82f6", "#f59e42", "#f43f5e", "#6366f1", "#eab308"][idx % 6]} />
+                                          ))}
+                                        </Pie>
+                                        <Legend />
+                                        <Tooltip formatter={(v) => `${v} bookings`} />
+                                      </PieChart>
+                                    </ResponsiveContainer>
+                                  </div>
+                                </div>
                 </div>
 
                 {/* Top Rooms */}

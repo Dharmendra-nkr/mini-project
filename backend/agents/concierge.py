@@ -1,8 +1,8 @@
 """Concierge Agent — the main orchestrator that routes to worker agents."""
 import json
-from agents.base import BaseAgent
-from agents.booking import BookingAgent
-from agents.recommendation import RecommendationAgent
+from .base import BaseAgent
+from .booking import BookingAgent
+from .recommendation import RecommendationAgent
 
 booking_agent = BookingAgent()
 recommendation_agent = RecommendationAgent()

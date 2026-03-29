@@ -3,8 +3,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from config import settings
-from db.session import engine
+from backend.config import settings
+from backend.db.session import engine
 
 
 @asynccontextmanager
@@ -31,12 +31,12 @@ app.add_middleware(
 )
 
 # Register routers
-from routers.auth import router as auth_router
-from routers.rooms import router as rooms_router
-from routers.bookings import router as bookings_router
-from routers.chat import router as chat_router
-from routers.voice import router as voice_router
-from routers.manager import router as manager_router
+from backend.routers.auth import router as auth_router
+from backend.routers.rooms import router as rooms_router
+from backend.routers.bookings import router as bookings_router
+from backend.routers.chat import router as chat_router
+from backend.routers.voice import router as voice_router
+from backend.routers.manager import router as manager_router
 
 app.include_router(auth_router)
 app.include_router(rooms_router)
