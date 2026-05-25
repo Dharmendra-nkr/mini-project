@@ -1,12 +1,11 @@
-# TODO: Fix Booking Agent Issue
+# TODO: Test and Fix Step 5 - Booking Agent
 
-## Steps from Approved Plan:
+## Detailed Execution Steps:
 
-- [x] Step 1: Add robust error handling and validation to backend/agents/booking.py (handle_create_booking and other handlers)
-- [x] Step 2: Update backend/agents/base.py to catch exceptions in tool execution loop
-- [x] Step 3: Improve error messages in backend/db/queries.py create_booking
-- [x] Step 4: Seed DB data if needed (run seed scripts)
-- [ ] Step 5: Test the fix (run server, test booking flow)
-- [ ] Step 6: Update TODO.md as steps complete
-- [ ] Complete: attempt_completion
+- [x] 5a: Seed DB data (run seed scripts: seed_guests.py, seed_extras.py, seed_bookings.py)
+- [x] 5b: Start backend server (python -m uvicorn backend.main:app --reload)
+- [ ] 5c: Test booking API (curl POST to /bookings, verify create_booking works without errors)
+- [ ] 5d: Test booking agent flow (POST to /chat with booking intent, check agent handles correctly)
+- [ ] 5e: If issues, debug/fix and retest
+- [ ] 6: Mark complete and attempt_completion
 

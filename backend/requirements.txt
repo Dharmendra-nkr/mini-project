@@ -1,5 +1,5 @@
 # Grand Meridian Resort — Backend
-# FastAPI + Groq AI Agents + PostgreSQL
+# FastAPI + Groq AI Agents + PostgreSQL + RAG Vector Embeddings
 
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
@@ -14,3 +14,12 @@ python-multipart==0.0.20
 httpx==0.28.1
 openai==1.59.3
 elevenlabs>=2.30.0
+
+# ─── RAG / Vector Embeddings ───────────────────────────────────
+# Local embedding model (runs offline, no API key needed)
+sentence-transformers==3.3.1
+numpy>=1.26.0
+
+# Optional: Pinecone cloud vector DB
+# Install only if you set PINECONE_API_KEY in .env
+# pinecone-client>=3.0.0

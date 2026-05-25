@@ -10,6 +10,15 @@ from backend.db.session import engine
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup / shutdown."""
+    # Initialise RAG vector store (builds/loads embeddings for hotel knowledge base)
+    import logging
+    logger = logging.getLogger(__name__)
+    try:
+        from backend.rag.retriever import initialise as rag_init
+        await rag_init()
+        logger.info("✅ RAG knowledge base initialised.")
+    except Exception as e:
+        logger.warning(f"⚠️  RAG initialisation failed: {e}. Resort info will use fallback.")
     yield
     await engine.dispose()
 

@@ -243,7 +243,11 @@ async def ai_insights(
     manager: Manager = Depends(get_current_manager),
     db: AsyncSession = Depends(get_db),
 ):
-    """Ask the AI Analytics Agent a question about resort performance."""
+    """Ask the AI Analytics Agent a question about resort performance. Returns both answer and chart data if available."""
     messages = [{"role": "user", "content": question}]
     result = await analytics_agent.process(messages, db)
-    return {"insight": result["content"], "manager": manager.name}
+    return {
+        "insight": result["content"],
+        "chart": result.get("chart"),
+        "manager": manager.name
+    }

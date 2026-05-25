@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     elevenlabs_api_key: str = ""
     elevenlabs_voice_id: str = "21m00Tcm4TlvDq8ikWAM"
 
+    # Pinecone (optional — for persistent cloud vector store)
+    # If not set, falls back to local numpy-based vector store
+    pinecone_api_key: str = ""
+    pinecone_index_name: str = "grand-meridian"
+
     # JWT
     jwt_secret: str = "grand-meridian-secret-key-change-in-production-2026"
     jwt_algorithm: str = "HS256"

@@ -1,8 +1,12 @@
 """Concierge Agent — the main orchestrator that routes to worker agents."""
 import json
+import logging
 from .base import BaseAgent
 from .booking import BookingAgent
 from .recommendation import RecommendationAgent
+from backend.rag.retriever import query_knowledge, infer_category
+
+logger = logging.getLogger(__name__)
 
 booking_agent = BookingAgent()
 recommendation_agent = RecommendationAgent()
@@ -40,11 +44,11 @@ CONCIERGE_TOOLS = [
         "type": "function",
         "function": {
             "name": "provide_resort_info",
-            "description": "Answer general questions about the resort: amenities, dining, activities, policies, location, etc.",
+            "description": "Answer ANY general question about the resort using the knowledge base: dining, spa, activities, pools, beach, events, weddings, sustainability, loyalty programme, transport, policies, WiFi, kids club, and more. The tool performs semantic retrieval to find the most relevant information.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "topic": {"type": "string", "description": "The topic the guest is asking about"},
+                    "topic": {"type": "string", "description": "The specific topic the guest is asking about (e.g. 'spa massage prices', 'kids club hours', 'cancellation policy', 'helicopter tour', 'wedding packages')"},
                 },
                 "required": ["topic"],
             },
@@ -92,7 +96,9 @@ IMPORTANT:
 - Use the guest's name if known
 - Always offer quick reply options to keep the conversation flowing
 - Suggest the 3D resort viewer for visual room browsing
-- For bookings, collect ALL required info before creating"""
+- For bookings, collect ALL required info before creating
+- When provide_resort_info returns "retrieved_context", use ONLY that context to answer — it comes from our verified knowledge base
+- Include specific details (prices, times, durations) from the retrieved context in your response"""
 
 
 class ConciergeAgent(BaseAgent):
@@ -126,42 +132,59 @@ class ConciergeAgent(BaseAgent):
             return {"agent_response": result["content"]}
 
         async def handle_resort_info(args: dict) -> dict:
+            """
+            RAG-powered resort information handler.
+            Performs semantic vector search over the hotel knowledge base
+            to find the most relevant information for the guest's question.
+            """
             topic = args.get("topic", "general")
-            info = {
-                "dining": {
-                    "restaurants": [
-                        "The Reef Table — Fine dining seafood, ocean view",
-                        "Palm Garden Bistro — Farm-to-table organic cuisine",
-                        "Horizon Sky Lounge — Rooftop cocktails and tapas",
-                        "Coral Beach Grill — Casual beachside BBQ and fresh catch",
-                        "Spice Route — International flavors and local delicacies",
-                    ],
-                    "note": "Room service available 24/7. Full board and half board meal plans available."
-                },
-                "spa": {
-                    "treatments": ["Deep Ocean Massage", "Coral Reef Couples Spa", "Ayurvedic Rejuvenation", "Hot Stone Therapy"],
-                    "hours": "8 AM - 9 PM daily",
-                    "note": "Can be booked as add-on to your stay."
-                },
-                "activities": {
-                    "water_sports": ["Scuba Diving", "Surfing", "Jet Skiing", "Kayaking", "Parasailing", "Deep Sea Fishing"],
-                    "land": ["Yoga", "Golf (nearby)", "Village Cultural Walk", "Cycling"],
-                    "tours": ["Island Hopping", "Helicopter Ride", "Mangrove Safari", "Lighthouse Tour"],
-                },
-                "policies": {
-                    "check_in": "3:00 PM",
-                    "check_out": "11:00 AM",
-                    "cancellation": "Free cancellation up to 48 hours before check-in",
-                    "children": "Children under 5 stay free. Kids club for ages 4-12.",
-                    "pets": "Service animals only",
-                },
-                "location": {
-                    "description": "Perched on a pristine stretch of coastline with direct beach access. Near coral reefs, mangrove forests, and a charming fishing marina.",
-                    "airport": "45 minutes from international airport (transfer available)",
-                    "nearby": "Marina, fishing village, lighthouse, mangrove forest, coral reef",
-                },
+
+            # Infer document category for more precise retrieval
+            category = infer_category(topic)
+
+            # Build query variants for better recall
+            extra_queries = []
+            if "price" in topic.lower() or "cost" in topic.lower():
+                extra_queries.append(f"How much does {topic} cost at Grand Meridian")
+            if "how" in topic.lower():
+                extra_queries.append(f"Grand Meridian Resort {topic} details")
+
+            # Semantic retrieval from vector store
+            context = query_knowledge(
+                query=f"Grand Meridian Resort {topic}",
+                top_k=4,
+                category=category,
+                extra_queries=extra_queries if extra_queries else None,
+            )
+
+            if not context:
+                # Fallback if RAG not yet initialised
+                logger.warning("RAG returned empty context — using fallback info.")
+                return {
+                    "info": (
+                        "Grand Meridian Resort is a luxury 5-star beachfront property with 120 rooms "
+                        "across 4 wings (Coral, Horizon, Palm, Reef). Amenities include infinity pools, "
+                        "private beach, world-class spa, 5 restaurants, and full water sports centre."
+                    ),
+                    "topic": topic,
+                    "source": "fallback",
+                }
+
+            logger.info(
+                f"RAG retrieved {len(context.split('[Source'))-1} chunks "
+                f"for topic='{topic}' category='{category}'"
+            )
+
+            return {
+                "topic": topic,
+                "retrieved_context": context,
+                "instruction": (
+                    "Use ONLY the retrieved_context above to answer the guest's question. "
+                    "Be specific, warm, and include relevant prices, times, or details. "
+                    "Do not make up information not present in the context."
+                ),
+                "source": "vector_rag",
             }
-            return info.get(topic, {"info": f"Grand Meridian Resort is a luxury beachfront property with world-class amenities across 4 unique wings.", "topics_available": list(info.keys())})
 
         return {
             "route_to_booking": handle_booking_route,
